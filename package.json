@@ -6,6 +6,7 @@
   "scripts": {
     "dev": "vite --host 0.0.0.0",
     "build": "vite build",
+    "build:word-db": "node scripts/build-word-db-from-cedict.mjs data/cedict_ts.u8 data/word-db.js",
     "preview": "vite preview --host 0.0.0.0"
   },
   "devDependencies": {

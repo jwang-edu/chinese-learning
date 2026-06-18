@@ -177,6 +177,7 @@ const state = {
   autoNextId: null,
   timedOutQuestions: new Set(),
   dailyStats: null,
+  emptyMessage: null,
 };
 
 const input = document.querySelector("#characterInput");
@@ -223,16 +224,21 @@ function startPractice() {
   state.orderMode = document.querySelector("[name='orderSetting']:checked").value;
   state.entries = chars.map(createEntry);
   state.questionQueue = state.entries.flatMap((entry) =>
-    selectedTypes.map((type) => ({
-      entry,
-      type,
-      id: `${type}:${entry.char}`,
-    }))
+    selectedTypes
+      .filter((type) => type !== "wordPractice" || hasWordPracticeQuestion(entry))
+      .map((type) => ({
+        entry,
+        type,
+        id: `${type}:${entry.char}`,
+      }))
   );
+  state.emptyMessage = state.questionQueue.length
+    ? null
+    : "这些字暂时没有可用于组词练习的真实词语。请换几个字，或导入更大的词典。";
   if (state.orderMode === "random") state.questionQueue = shuffle(state.questionQueue);
   state.screen = "practice";
   state.activeIndex = 0;
-  state.mode = state.questionQueue[0].type;
+  state.mode = state.questionQueue[0]?.type || selectedTypes[0];
   state.selectedAnswer = null;
   state.placed = {};
   state.assemblyChoices = [];
@@ -254,6 +260,7 @@ function showSettings() {
   stopTimer();
   clearAutoNext();
   state.screen = "settings";
+  state.emptyMessage = null;
   settingsPage.classList.remove("hidden");
   practicePage.classList.add("hidden");
   practiceStats.classList.add("hidden");
@@ -302,8 +309,8 @@ function render() {
     practiceArea.innerHTML = `
       <div class="empty-state">
         <div>
-          <h2>输入几个汉字开始练习</h2>
-          <p>支持拼音辨字、看字选拼音，也可以把部件拖进田字格拼字。</p>
+          <h2>${escapeHTML(state.emptyMessage || "输入几个汉字开始练习")}</h2>
+          <p>组词练习只使用词典里的真实词语，不再自动生成假词。</p>
         </div>
       </div>
     `;
@@ -453,6 +460,7 @@ function getPromptHTML(entry, mode) {
   if (mode === "pinyinToChar") return escapeHTML(entry.pinyin || "?");
   if (mode === "charToPinyin") return escapeHTML(entry.char);
   const question = getWordQuestion(entry);
+  if (!question) return "";
   return question.word
     .split("")
     .map((char, index) =>
@@ -465,11 +473,16 @@ function getPromptHTML(entry, mode) {
 
 function getWordQuestion(entry) {
   const words = getWordsForChar(entry.char);
-  const word = words[0] || getFallbackWord(entry.char);
+  const word = words[0];
+  if (!word) return null;
   return {
     word,
     targetIndex: Math.max(0, word.indexOf(entry.char)),
   };
+}
+
+function hasWordPracticeQuestion(entry) {
+  return getWordsForChar(entry.char).length > 0;
 }
 
 function getWordsForChar(char) {
@@ -505,12 +518,6 @@ function buildWordIndex(words) {
     });
   });
   return index;
-}
-
-function getFallbackWord(char) {
-  const templates = ["学习", "认读", "练习", "书写"];
-  const template = templates[char.codePointAt(0) % templates.length];
-  return `${template}${char}`;
 }
 
 function renderAssembly() {
