@@ -1,6 +1,3 @@
-import "./data/hanzi-db.js";
-import "./data/word-db.js";
-
 const CHARACTER_DATA = {
   一: { pinyin: "yi", parts: ["一"], layout: "single" },
   二: { pinyin: "er", parts: ["一", "一"], layout: "vertical" },
@@ -148,6 +145,7 @@ const WORD_BANK = {
 };
 
 const WORD_DICTIONARY = [...new Set([...(window.WORD_DB || []), ...Object.values(WORD_BANK).flat()])];
+const WORD_RANK = new Map(WORD_DICTIONARY.map((word, index) => [word, index]));
 const WORD_INDEX = buildWordIndex(WORD_DICTIONARY);
 
 const state = {
@@ -496,12 +494,16 @@ function sortWordCandidates(words, char) {
       const firstPreferred = preferredWordScore(first, char);
       const secondPreferred = preferredWordScore(second, char);
       if (firstPreferred !== secondPreferred) return secondPreferred - firstPreferred;
+      const firstRank = WORD_RANK.get(first) ?? Number.MAX_SAFE_INTEGER;
+      const secondRank = WORD_RANK.get(second) ?? Number.MAX_SAFE_INTEGER;
+      if (firstRank !== secondRank) return firstRank - secondRank;
       return first.length - second.length;
     });
 }
 
 function preferredWordScore(word, char) {
   let score = 0;
+  if (WORD_BANK[char]?.includes(word)) score += 100;
   if (word.length === 2) score += 4;
   if (word.length === 3) score += 2;
   if (word.indexOf(char) === 0) score += 1;
