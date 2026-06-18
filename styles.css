@@ -465,6 +465,144 @@ input:focus {
   margin-top: 12px;
 }
 
+.list-manager {
+  margin-top: 16px;
+  padding: 14px;
+  border: 1px solid rgba(216, 185, 138, 0.62);
+  border-radius: 8px;
+  background:
+    linear-gradient(rgba(255, 253, 246, 0.92), rgba(255, 253, 246, 0.92)),
+    radial-gradient(circle at 100% 0, rgba(109, 156, 85, 0.12), transparent 44%);
+}
+
+.list-manager-header {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(260px, 380px);
+  gap: 12px;
+  align-items: end;
+}
+
+.list-manager h2 {
+  margin: 0 0 4px;
+  color: var(--ink);
+  font-family: "Kaiti SC", "STKaiti", serif;
+  font-size: 24px;
+  letter-spacing: 0;
+}
+
+.list-manager p,
+.saved-list-empty {
+  margin: 0;
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 750;
+  line-height: 1.5;
+}
+
+.save-list-controls {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 8px;
+}
+
+.save-list-controls button,
+.saved-list-actions button {
+  min-height: 42px;
+  padding: 0 12px;
+  border: 1px solid rgba(168, 61, 50, 0.3);
+  border-radius: 6px;
+  background: #fff1e1;
+  color: var(--seal);
+  font-weight: 850;
+}
+
+.saved-lists {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.saved-list-card {
+  display: grid;
+  gap: 8px;
+  padding: 10px;
+  border: 1px solid rgba(216, 185, 138, 0.72);
+  border-radius: 8px;
+  background:
+    linear-gradient(rgba(255, 250, 240, 0.94), rgba(255, 250, 240, 0.94)),
+    radial-gradient(circle at 100% 0, rgba(232, 146, 63, 0.12), transparent 48%);
+}
+
+.saved-list-select {
+  position: relative;
+  display: grid !important;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 8px;
+  align-items: start !important;
+  min-height: 0 !important;
+  margin: 0 !important;
+}
+
+.saved-list-select strong,
+.saved-list-select small {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.saved-list-select strong {
+  color: var(--ink);
+  font-size: 15px;
+}
+
+.saved-list-select small {
+  margin-top: 3px;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.saved-list-select:has(input:checked)::after {
+  content: "✓";
+  position: absolute;
+  top: -3px;
+  right: -2px;
+  display: grid;
+  width: 22px;
+  height: 22px;
+  place-items: center;
+  border-radius: 50%;
+  background: var(--green-dark);
+  color: #fff7df;
+  font-size: 14px;
+  font-weight: 900;
+}
+
+.saved-list-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.saved-list-editor {
+  display: grid;
+  gap: 8px;
+  padding-top: 8px;
+  border-top: 1px dashed rgba(216, 185, 138, 0.72);
+}
+
+.saved-list-editor input,
+.saved-list-editor textarea {
+  padding: 9px 10px;
+  font-size: 13px;
+}
+
+.saved-list-editor textarea {
+  min-height: 70px;
+  resize: vertical;
+}
+
 .preset-row button,
 .mode-tabs button,
 .answer-options button,

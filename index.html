@@ -51,6 +51,20 @@
             <button type="button" data-preset="想您意念">心部</button>
           </div>
 
+          <section class="list-manager" aria-labelledby="savedListsTitle">
+            <div class="list-manager-header">
+              <div>
+                <h2 id="savedListsTitle">练习单</h2>
+                <p>保存一组字，下次可以勾选一个或多个一起训练。</p>
+              </div>
+              <div class="save-list-controls">
+                <input id="listNameInput" type="text" maxlength="18" placeholder="练习单名称" />
+                <button id="saveListButton" type="button">保存</button>
+              </div>
+            </div>
+            <div id="savedLists" class="saved-lists" aria-live="polite"></div>
+          </section>
+
           <div class="settings-grid">
             <fieldset class="question-type-fieldset">
               <legend>测试题类型</legend>
@@ -146,6 +160,6 @@
 
     <script src="data/hanzi-db.js"></script>
     <script src="data/word-db.js"></script>
-    <script src="app.js?v=8"></script>
+    <script src="app.js?v=11"></script>
   </body>
 </html>

@@ -176,9 +176,13 @@ const state = {
   timedOutQuestions: new Set(),
   dailyStats: null,
   emptyMessage: null,
+  savedLists: [],
 };
 
 const input = document.querySelector("#characterInput");
+const listNameInput = document.querySelector("#listNameInput");
+const saveListButton = document.querySelector("#saveListButton");
+const savedListsNode = document.querySelector("#savedLists");
 const settingsPage = document.querySelector("#settingsPage");
 const practicePage = document.querySelector("#practicePage");
 const practiceStats = document.querySelector(".practice-only");
@@ -196,6 +200,7 @@ const dailySummary = document.querySelector("#dailySummary");
 
 document.querySelector("#startPractice").addEventListener("click", startPractice);
 document.querySelector("#backToSettings").addEventListener("click", showSettings);
+saveListButton.addEventListener("click", saveCurrentList);
 
 document.querySelectorAll("[data-preset]").forEach((button) => {
   button.addEventListener("click", () => {
@@ -204,12 +209,13 @@ document.querySelectorAll("[data-preset]").forEach((button) => {
 });
 
 input.value = "明好林休妈语";
+state.savedLists = loadSavedLists();
 showSettings();
 
 function startPractice() {
   stopTimer();
   clearAutoNext();
-  const chars = Array.from(new Set(Array.from(input.value).filter(isChineseChar)));
+  const chars = getSelectedPracticeChars();
   const selectedTypes = Array.from(document.querySelectorAll("[data-type]:checked")).map((field) => field.dataset.type);
   if (!chars.length || !selectedTypes.length) return;
   state.timerDuration = Number(document.querySelector("[name='timerSetting']:checked").value);
@@ -265,6 +271,156 @@ function showSettings() {
   progressText.textContent = "0 / 0";
   timerText.textContent = `${state.timerDuration}s`;
   updateScoreDisplay();
+  renderSavedLists();
+}
+
+function getSelectedPracticeChars() {
+  const typedChars = Array.from(input.value).filter(isChineseChar);
+  const listChars = Array.from(document.querySelectorAll("[data-list-select]:checked"))
+    .flatMap((field) => state.savedLists.find((list) => list.id === field.dataset.listSelect)?.chars || []);
+  return Array.from(new Set([...typedChars, ...listChars]));
+}
+
+function getCheckedListChars() {
+  return Array.from(document.querySelectorAll("[data-list-select]:checked"))
+    .flatMap((field) => state.savedLists.find((list) => list.id === field.dataset.listSelect)?.chars || []);
+}
+
+function syncInputWithCheckedLists() {
+  const checkedChars = getCheckedListChars();
+  if (checkedChars.length) {
+    input.value = Array.from(new Set(checkedChars)).join("");
+    return;
+  }
+  input.value = "";
+}
+
+function loadSavedLists() {
+  try {
+    const saved = JSON.parse(localStorage.getItem("hanzi-practice:saved-lists"));
+    return Array.isArray(saved)
+      ? saved.filter((list) => list?.id && list?.name && Array.isArray(list.chars))
+      : [];
+  } catch {
+    return [];
+  }
+}
+
+function persistSavedLists() {
+  localStorage.setItem("hanzi-practice:saved-lists", JSON.stringify(state.savedLists));
+}
+
+function saveCurrentList() {
+  const chars = Array.from(new Set(Array.from(input.value).filter(isChineseChar)));
+  if (!chars.length) return;
+  const name = listNameInput.value.trim() || `练习单 ${state.savedLists.length + 1}`;
+  const existing = state.savedLists.find((list) => list.name === name);
+  if (existing) {
+    existing.chars = chars;
+    existing.updatedAt = Date.now();
+  } else {
+    state.savedLists.unshift({
+      id: `list-${Date.now()}-${Math.random().toString(16).slice(2)}`,
+      name,
+      chars,
+      updatedAt: Date.now(),
+    });
+  }
+  listNameInput.value = "";
+  persistSavedLists();
+  renderSavedLists();
+}
+
+function renderSavedLists() {
+  const selectedIds = new Set(
+    Array.from(document.querySelectorAll("[data-list-select]:checked")).map((field) => field.dataset.listSelect)
+  );
+  if (!state.savedLists.length) {
+    savedListsNode.innerHTML = `<p class="saved-list-empty">还没有保存的练习单。</p>`;
+    return;
+  }
+
+  savedListsNode.innerHTML = "";
+  state.savedLists.forEach((list) => {
+    const card = document.createElement("article");
+    card.className = "saved-list-card";
+    card.innerHTML = `
+      <label class="saved-list-select">
+        <input type="checkbox" data-list-select="${escapeAttribute(list.id)}" ${selectedIds.has(list.id) ? "checked" : ""} />
+        <span>
+          <strong>${escapeHTML(list.name)}</strong>
+          <small>${escapeHTML(list.chars.join(""))}</small>
+        </span>
+      </label>
+      <div class="saved-list-actions">
+        <button type="button" data-list-load="${escapeAttribute(list.id)}">载入</button>
+        <button type="button" data-list-edit="${escapeAttribute(list.id)}">编辑</button>
+        <button type="button" data-list-delete="${escapeAttribute(list.id)}">删除</button>
+      </div>
+      <div class="saved-list-editor hidden" data-list-editor="${escapeAttribute(list.id)}">
+        <input data-list-name-edit="${escapeAttribute(list.id)}" type="text" maxlength="18" value="${escapeAttribute(list.name)}" />
+        <textarea data-list-chars-edit="${escapeAttribute(list.id)}" rows="2">${escapeHTML(list.chars.join(""))}</textarea>
+        <div class="saved-list-actions">
+          <button type="button" data-list-save-edit="${escapeAttribute(list.id)}">保存修改</button>
+          <button type="button" data-list-cancel-edit="${escapeAttribute(list.id)}">取消</button>
+        </div>
+      </div>
+    `;
+    savedListsNode.appendChild(card);
+  });
+
+  savedListsNode.querySelectorAll("[data-list-load]").forEach((button) => {
+    button.addEventListener("click", () => {
+      const list = state.savedLists.find((item) => item.id === button.dataset.listLoad);
+      if (list) input.value = list.chars.join("");
+    });
+  });
+  savedListsNode.querySelectorAll("[data-list-select]").forEach((field) => {
+    field.addEventListener("change", syncInputWithCheckedLists);
+  });
+  savedListsNode.querySelectorAll("[data-list-edit]").forEach((button) => {
+    button.addEventListener("click", () => {
+      const editor = savedListsNode.querySelector(`[data-list-editor="${cssEscape(button.dataset.listEdit)}"]`);
+      editor?.classList.toggle("hidden");
+    });
+  });
+  savedListsNode.querySelectorAll("[data-list-cancel-edit]").forEach((button) => {
+    button.addEventListener("click", () => {
+      const editor = savedListsNode.querySelector(`[data-list-editor="${cssEscape(button.dataset.listCancelEdit)}"]`);
+      editor?.classList.add("hidden");
+    });
+  });
+  savedListsNode.querySelectorAll("[data-list-save-edit]").forEach((button) => {
+    button.addEventListener("click", () => saveEditedList(button.dataset.listSaveEdit));
+  });
+  savedListsNode.querySelectorAll("[data-list-delete]").forEach((button) => {
+    button.addEventListener("click", () => {
+      state.savedLists = state.savedLists.filter((item) => item.id !== button.dataset.listDelete);
+      persistSavedLists();
+      renderSavedLists();
+      syncInputWithCheckedLists();
+    });
+  });
+}
+
+function saveEditedList(id) {
+  const list = state.savedLists.find((item) => item.id === id);
+  if (!list) return;
+  const nameField = savedListsNode.querySelector(`[data-list-name-edit="${cssEscape(id)}"]`);
+  const charsField = savedListsNode.querySelector(`[data-list-chars-edit="${cssEscape(id)}"]`);
+  const chars = Array.from(new Set(Array.from(charsField?.value || "").filter(isChineseChar)));
+  if (!chars.length) return;
+
+  list.name = nameField?.value.trim() || list.name;
+  list.chars = chars;
+  list.updatedAt = Date.now();
+  persistSavedLists();
+  renderSavedLists();
+  syncInputWithCheckedLists();
+}
+
+function cssEscape(value) {
+  return window.CSS?.escape ? window.CSS.escape(value) : String(value).replace(/["\\]/g, "\\$&");
 }
 
 function createEntry(char) {
