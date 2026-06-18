@@ -1,0 +1,149 @@
+<!doctype html>
+<html lang="zh-Hans">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>陪你练汉字</title>
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <main class="app-shell">
+      <section class="workspace" aria-label="汉字练习">
+        <header class="topbar">
+          <div>
+            <p class="eyebrow">国风识字小课堂</p>
+            <h1>陪你练汉字</h1>
+          </div>
+          <div class="student-stats practice-only" aria-live="polite">
+            <div class="progress-pill">
+              <span id="progressText">0 / 0</span>
+            </div>
+            <div class="score-pill">
+              <span id="scoreText">0 ★</span>
+              <span id="scoreStars" class="score-stars" aria-hidden="true"></span>
+            </div>
+            <div class="timer-pill">
+              <span id="timerText">10s</span>
+            </div>
+            <button id="backToSettings" class="stat-button" type="button">设置</button>
+          </div>
+        </header>
+
+        <section id="settingsPage" class="settings-page" aria-label="练习设置">
+          <div class="settings-hero" aria-hidden="true">
+            <div class="fruit-panda-art"></div>
+            <div class="hero-seal">练</div>
+          </div>
+
+          <label for="characterInput">要练习的字</label>
+          <div class="entry-row">
+            <textarea
+              id="characterInput"
+              rows="2"
+              spellcheck="false"
+              placeholder="例如：明 好 林 休 妈 语"
+            ></textarea>
+            <button id="startPractice" type="button">开始答题</button>
+          </div>
+          <div class="preset-row" aria-label="快速示例">
+            <button type="button" data-preset="明好林休妈语">入门</button>
+            <button type="button" data-preset="海湖清河">偏旁</button>
+            <button type="button" data-preset="想您意念">心部</button>
+          </div>
+
+          <div class="settings-grid">
+            <fieldset class="question-type-fieldset">
+              <legend>测试题类型</legend>
+              <label><input type="checkbox" data-type="pinyinToChar" checked /> 拼音 → 字</label>
+              <label><input type="checkbox" data-type="charToPinyin" checked /> 字 → 拼音</label>
+              <label><input type="checkbox" data-type="assemble" checked /> 选择拼字</label>
+              <label><input type="checkbox" data-type="wordPractice" checked /> 组词练习</label>
+            </fieldset>
+
+            <fieldset>
+              <legend>答题时间</legend>
+              <label><input type="radio" name="timerSetting" value="10" checked /> 10 秒</label>
+              <label><input type="radio" name="timerSetting" value="20" /> 20 秒</label>
+              <label><input type="radio" name="timerSetting" value="30" /> 30 秒</label>
+            </fieldset>
+
+            <fieldset>
+              <legend>奖励星星</legend>
+              <label class="reward-row">
+                <span>拼音 → 字</span>
+                <select data-reward-type="pinyinToChar">
+                  <option value="1">+1 ★</option>
+                  <option value="2" selected>+2 ★</option>
+                  <option value="3">+3 ★</option>
+                </select>
+              </label>
+              <label class="reward-row">
+                <span>字 → 拼音</span>
+                <select data-reward-type="charToPinyin">
+                  <option value="1">+1 ★</option>
+                  <option value="2" selected>+2 ★</option>
+                  <option value="3">+3 ★</option>
+                </select>
+              </label>
+              <label class="reward-row">
+                <span>选择拼字</span>
+                <select data-reward-type="assemble">
+                  <option value="1">+1 ★</option>
+                  <option value="2" selected>+2 ★</option>
+                  <option value="3">+3 ★</option>
+                </select>
+              </label>
+              <label class="reward-row">
+                <span>组词练习</span>
+                <select data-reward-type="wordPractice">
+                  <option value="1">+1 ★</option>
+                  <option value="2" selected>+2 ★</option>
+                  <option value="3">+3 ★</option>
+                </select>
+              </label>
+            </fieldset>
+
+            <fieldset>
+              <legend>出题顺序</legend>
+              <label><input type="radio" name="orderSetting" value="ordered" checked /> 按输入顺序</label>
+              <label><input type="radio" name="orderSetting" value="random" /> 乱序</label>
+            </fieldset>
+          </div>
+        </section>
+
+        <section id="practicePage" class="practice-page hidden" aria-label="答题页面">
+          <section class="practice-layout with-scoreboard">
+            <section id="practiceArea" class="practice-area" aria-live="polite"></section>
+            <aside class="daily-scoreboard" aria-label="每日成绩">
+              <div class="scoreboard-header">
+                <span>每日成绩</span>
+                <strong id="dailyDate">今天</strong>
+              </div>
+              <div class="scoreboard-grid">
+                <div>
+                  <span>星星</span>
+                  <strong id="dailyStars">0 ★</strong>
+                </div>
+                <div>
+                  <span>作答</span>
+                  <strong id="dailyDone">0</strong>
+                </div>
+                <div>
+                  <span>答对</span>
+                  <strong id="dailyCorrect">0</strong>
+                </div>
+                <div>
+                  <span>答错</span>
+                  <strong id="dailyWrong">0</strong>
+                </div>
+              </div>
+              <div class="scoreboard-note" id="dailySummary">今天还没有成绩。</div>
+            </aside>
+          </section>
+        </section>
+      </section>
+    </main>
+
+    <script type="module" src="/app.js"></script>
+  </body>
+</html>
