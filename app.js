@@ -1,4 +1,5 @@
 import "./data/hanzi-db.js";
+import "./data/word-db.js";
 
 const CHARACTER_DATA = {
   一: { pinyin: "yi", parts: ["一"], layout: "single" },
@@ -145,6 +146,9 @@ const WORD_BANK = {
   从: ["从前", "从来"],
   众: ["众人", "大众"],
 };
+
+const WORD_DICTIONARY = [...new Set([...(window.WORD_DB || []), ...Object.values(WORD_BANK).flat()])];
+const WORD_INDEX = buildWordIndex(WORD_DICTIONARY);
 
 const state = {
   screen: "settings",
@@ -460,12 +464,53 @@ function getPromptHTML(entry, mode) {
 }
 
 function getWordQuestion(entry) {
-  const words = WORD_BANK[entry.char] || [];
-  const word = words.find((item) => item.includes(entry.char)) || `${entry.char}字`;
+  const words = getWordsForChar(entry.char);
+  const word = words[0] || getFallbackWord(entry.char);
   return {
     word,
     targetIndex: Math.max(0, word.indexOf(entry.char)),
   };
+}
+
+function getWordsForChar(char) {
+  return sortWordCandidates([...(WORD_BANK[char] || []), ...(WORD_INDEX.get(char) || [])], char);
+}
+
+function sortWordCandidates(words, char) {
+  return [...new Set(words)]
+    .filter((word) => word.includes(char) && word.length >= 2 && word.length <= 4)
+    .sort((first, second) => {
+      const firstPreferred = preferredWordScore(first, char);
+      const secondPreferred = preferredWordScore(second, char);
+      if (firstPreferred !== secondPreferred) return secondPreferred - firstPreferred;
+      return first.length - second.length;
+    });
+}
+
+function preferredWordScore(word, char) {
+  let score = 0;
+  if (word.length === 2) score += 4;
+  if (word.length === 3) score += 2;
+  if (word.indexOf(char) === 0) score += 1;
+  if (/[的了着过]/u.test(word)) score -= 3;
+  return score;
+}
+
+function buildWordIndex(words) {
+  const index = new Map();
+  uniqueOptions(words.map((word) => ({ value: word }))).forEach(({ value: word }) => {
+    Array.from(new Set(Array.from(word).filter(isChineseChar))).forEach((char) => {
+      if (!index.has(char)) index.set(char, []);
+      index.get(char).push(word);
+    });
+  });
+  return index;
+}
+
+function getFallbackWord(char) {
+  const templates = ["学习", "认读", "练习", "书写"];
+  const template = templates[char.codePointAt(0) % templates.length];
+  return `${template}${char}`;
 }
 
 function renderAssembly() {
