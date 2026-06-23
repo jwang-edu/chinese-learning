@@ -71,6 +71,7 @@ const CHARACTER_DATA = {
 };
 
 const HANZI_DATABASE = { ...CHARACTER_DATA, ...(window.HANZI_DB || {}) };
+const PINYIN_SYLLABUS = [...(window.PINYIN_SYLLABUS || [])].sort((first, second) => first.order - second.order);
 
 const WORD_BANK = {
   一: ["一天", "一人", "一个"],
@@ -147,9 +148,19 @@ const WORD_BANK = {
 const WORD_DICTIONARY = [...new Set([...(window.WORD_DB || []), ...Object.values(WORD_BANK).flat()])];
 const WORD_RANK = new Map(WORD_DICTIONARY.map((word, index) => [word, index]));
 const WORD_INDEX = buildWordIndex(WORD_DICTIONARY);
+const QUESTION_TYPE_LABELS = {
+  pinyinToChar: "拼音找字",
+  charToPinyin: "汉字找拼音",
+  assemble: "选择拼字",
+  wordPractice: "组词练习",
+  pinyinAudioToSymbol: "听音辨拼音",
+  pinyinSymbolToAudio: "看拼音选读音",
+  pinyinSymbolToChar: "拼音找汉字",
+};
 
 const state = {
   screen: "settings",
+  trainingDomain: "hanzi",
   entries: [],
   questionQueue: [],
   activeIndex: 0,
@@ -168,6 +179,9 @@ const state = {
     charToPinyin: 2,
     assemble: 2,
     wordPractice: 2,
+    pinyinAudioToSymbol: 2,
+    pinyinSymbolToAudio: 2,
+    pinyinSymbolToChar: 2,
   },
   orderMode: "ordered",
   timeLeft: 10,
@@ -175,15 +189,36 @@ const state = {
   autoNextId: null,
   timedOutQuestions: new Set(),
   dailyStats: null,
+  currentSession: null,
+  sessionHistory: [],
+  isMistakeReview: false,
   emptyMessage: null,
   savedLists: [],
+  audioPlayer: null,
+  audioFallbackId: null,
+  audioSequenceTimer: null,
+  audioSequenceToken: 0,
+  userProfile: null,
+  sessionStartedAt: null,
+  progressionFinalized: false,
+  curriculumVolumeId: "g1a",
+  curriculumSelectedCharacters: new Set(),
 };
 
 const input = document.querySelector("#characterInput");
 const listNameInput = document.querySelector("#listNameInput");
 const saveListButton = document.querySelector("#saveListButton");
 const savedListsNode = document.querySelector("#savedLists");
+const curriculumVolumesNode = document.querySelector("#curriculumVolumes");
+const curriculumVolumeSummary = document.querySelector("#curriculumVolumeSummary");
+const curriculumGroupsNode = document.querySelector("#curriculumGroups");
+const curriculumCharactersNode = document.querySelector("#curriculumCharacters");
+const curriculumSelectedCount = document.querySelector("#curriculumSelectedCount");
+const addCurriculumCharactersButton = document.querySelector("#addCurriculumCharacters");
 const settingsPage = document.querySelector("#settingsPage");
+const pinyinSettingsPage = document.querySelector("#pinyinSettingsPage");
+const settingsOnlyNodes = document.querySelectorAll(".settings-only");
+const pinyinSyllabusNode = document.querySelector("#pinyinSyllabus");
 const practicePage = document.querySelector("#practicePage");
 const practiceStats = document.querySelector(".practice-only");
 const practiceArea = document.querySelector("#practiceArea");
@@ -197,10 +232,41 @@ const dailyDone = document.querySelector("#dailyDone");
 const dailyCorrect = document.querySelector("#dailyCorrect");
 const dailyWrong = document.querySelector("#dailyWrong");
 const dailySummary = document.querySelector("#dailySummary");
+const categoryReportList = document.querySelector("#categoryReportList");
+const sessionHistoryList = document.querySelector("#sessionHistoryList");
+const reviewMistakesButton = document.querySelector("#reviewMistakes");
+const mistakeCount = document.querySelector("#mistakeCount");
+const homePage = document.querySelector("#homePage");
+const growthPage = document.querySelector("#growthPage");
+const profileName = document.querySelector("#profileName");
+const profileLevel = document.querySelector("#profileLevel");
+const profileStars = document.querySelector("#profileStars");
+const homeLevelSummary = document.querySelector("#homeLevelSummary");
+const dailyTasksList = document.querySelector("#dailyTasksList");
+const checkInWeek = document.querySelector("#checkInWeek");
+const streakMessage = document.querySelector("#streakMessage");
+const achievementPreviewList = document.querySelector("#achievementPreviewList");
+const levelDetail = document.querySelector("#levelDetail");
+const growthMapAreas = document.querySelector("#growthMapAreas");
+const allAchievementsList = document.querySelector("#allAchievementsList");
 
 document.querySelector("#startPractice").addEventListener("click", startPractice);
+document.querySelector("#startPinyinPractice").addEventListener("click", startPinyinPractice);
 document.querySelector("#backToSettings").addEventListener("click", showSettings);
 saveListButton.addEventListener("click", saveCurrentList);
+document.querySelector("#selectCurriculumVolume").addEventListener("click", selectCurrentCurriculumVolume);
+document.querySelector("#clearCurriculumSelection").addEventListener("click", clearCurriculumSelection);
+addCurriculumCharactersButton.addEventListener("click", addCurriculumCharactersToPractice);
+reviewMistakesButton.addEventListener("click", startMistakeReview);
+document.querySelector("#heroStartLearning").addEventListener("click", () => switchAppPage("hanzi"));
+
+document.querySelectorAll("[data-app-page]").forEach((button) => {
+  button.addEventListener("click", () => switchAppPage(button.dataset.appPage));
+});
+document.querySelector("#selectSoundLessons").addEventListener("click", () => selectPinyinPhase("先学读音"));
+document.querySelector("#selectCombineLessons").addEventListener("click", () => selectPinyinPhase("再学拼读"));
+document.querySelector("#selectAllPinyinLessons").addEventListener("click", () => selectPinyinPhase("all"));
+document.querySelector("#clearAllPinyinLessons").addEventListener("click", () => selectPinyinPhase("none"));
 
 document.querySelectorAll("[data-preset]").forEach((button) => {
   button.addEventListener("click", () => {
@@ -210,21 +276,38 @@ document.querySelectorAll("[data-preset]").forEach((button) => {
 
 input.value = "明好林休妈语";
 state.savedLists = loadSavedLists();
-showSettings();
+state.sessionHistory = loadSessionHistory();
+state.userProfile = window.MOYA_PROGRESS.loadProfile();
+renderPinyinSyllabus();
+renderCurriculumPicker();
+renderProgressionUI();
+switchAppPage("home");
+
+window.addEventListener("moya:progress", (event) => {
+  state.userProfile = event.detail.profile;
+  renderProgressionUI();
+});
 
 function startPractice() {
+  state.trainingDomain = "hanzi";
+  state.isMistakeReview = false;
+  state.sessionStartedAt = Date.now();
+  state.progressionFinalized = false;
   stopTimer();
   clearAutoNext();
   const chars = getSelectedPracticeChars();
   const selectedTypes = Array.from(document.querySelectorAll("[data-type]:checked")).map((field) => field.dataset.type);
   if (!chars.length || !selectedTypes.length) return;
   state.timerDuration = Number(document.querySelector("[name='timerSetting']:checked").value);
-  state.rewardStars = Object.fromEntries(
-    Array.from(document.querySelectorAll("[data-reward-type]")).map((field) => [
-      field.dataset.rewardType,
-      Number(field.value),
-    ])
-  );
+  state.rewardStars = {
+    ...state.rewardStars,
+    ...Object.fromEntries(
+      Array.from(document.querySelectorAll("[data-reward-type]")).map((field) => [
+        field.dataset.rewardType,
+        Number(field.value),
+      ])
+    ),
+  };
   state.orderMode = document.querySelector("[name='orderSetting']:checked").value;
   state.entries = chars.map(createEntry);
   state.questionQueue = state.entries.flatMap((entry) =>
@@ -253,25 +336,251 @@ function startPractice() {
   state.scoredQuestions = new Set();
   state.timedOutQuestions = new Set();
   settingsPage.classList.add("hidden");
+  pinyinSettingsPage.classList.add("hidden");
+  settingsOnlyNodes.forEach((node) => node.classList.add("hidden"));
   practicePage.classList.remove("hidden");
   practiceStats.classList.remove("hidden");
+  scrollPracticeIntoView();
   state.dailyStats = loadDailyStats();
+  beginTrainingSession("hanzi", selectedTypes);
+  renderDailyStats();
+  render();
+}
+
+function startPinyinPractice() {
+  stopTimer();
+  stopSpeech();
+  clearAutoNext();
+  state.isMistakeReview = false;
+  state.sessionStartedAt = Date.now();
+  state.progressionFinalized = false;
+  const selectedLessonIds = new Set(
+    Array.from(document.querySelectorAll("[data-pinyin-lesson]:checked")).map((field) => field.dataset.pinyinLesson)
+  );
+  const selectedTypes = Array.from(document.querySelectorAll("[data-pinyin-type]:checked")).map(
+    (field) => field.dataset.pinyinType
+  );
+  if (!selectedLessonIds.size || !selectedTypes.length) return;
+
+  const lessons = PINYIN_SYLLABUS.filter((lesson) => selectedLessonIds.has(lesson.id));
+  state.trainingDomain = "pinyin";
+  state.timerDuration = Number(document.querySelector("[name='pinyinTimerSetting']:checked").value);
+  state.orderMode = document.querySelector("[name='pinyinOrderSetting']:checked").value;
+  state.entries = lessons.flatMap((lesson) =>
+    lesson.items.map((item, index) => ({
+      ...item,
+      id: `${lesson.id}:${index}:${item.pinyin}`,
+      lessonId: lesson.id,
+      lessonTitle: lesson.title,
+      lessonRule: lesson.rule,
+      lessonItems: lesson.items.map((lessonItem, lessonIndex) => ({
+        ...lessonItem,
+        id: `${lesson.id}:${lessonIndex}:${lessonItem.pinyin}`,
+      })),
+    }))
+  );
+  state.questionQueue = state.entries.flatMap((entry) =>
+    selectedTypes.map((type) => ({
+      entry,
+      type,
+      id: `${type}:${entry.id}`,
+    }))
+  );
+  if (state.orderMode === "random") state.questionQueue = shuffle(state.questionQueue);
+  state.emptyMessage = null;
+  state.screen = "practice";
+  state.activeIndex = 0;
+  state.mode = state.questionQueue[0]?.type || selectedTypes[0];
+  state.selectedAnswer = null;
+  state.choiceOptions = new Map();
+  state.score = 0;
+  state.scoredQuestions = new Set();
+  state.timedOutQuestions = new Set();
+  settingsPage.classList.add("hidden");
+  pinyinSettingsPage.classList.add("hidden");
+  settingsOnlyNodes.forEach((node) => node.classList.add("hidden"));
+  practicePage.classList.remove("hidden");
+  practiceStats.classList.remove("hidden");
+  scrollPracticeIntoView();
+  state.dailyStats = loadDailyStats();
+  beginTrainingSession("pinyin", selectedTypes);
   renderDailyStats();
   render();
 }
 
 function showSettings() {
   stopTimer();
+  stopSpeech();
+  stopAudioOptionSequence();
   clearAutoNext();
+  if (!["hanzi", "pinyin"].includes(state.trainingDomain)) state.trainingDomain = "hanzi";
   state.screen = "settings";
   state.emptyMessage = null;
-  settingsPage.classList.remove("hidden");
+  homePage.classList.add("hidden");
+  growthPage.classList.add("hidden");
+  settingsOnlyNodes.forEach((node) => node.classList.remove("hidden"));
+  settingsPage.classList.toggle("hidden", state.trainingDomain !== "hanzi");
+  pinyinSettingsPage.classList.toggle("hidden", state.trainingDomain !== "pinyin");
   practicePage.classList.add("hidden");
   practiceStats.classList.add("hidden");
   progressText.textContent = "0 / 0";
   timerText.textContent = `${state.timerDuration}s`;
   updateScoreDisplay();
+  state.dailyStats = loadDailyStats();
+  renderDailyStats();
   renderSavedLists();
+  updateNavigation(state.trainingDomain);
+}
+
+function switchAppPage(page) {
+  stopTimer();
+  stopSpeech();
+  stopAudioOptionSequence();
+  clearAutoNext();
+  state.screen = page === "home" || page === "growth" ? page : "settings";
+  if (page === "hanzi" || page === "pinyin") state.trainingDomain = page;
+  homePage.classList.toggle("hidden", page !== "home");
+  growthPage.classList.toggle("hidden", page !== "growth");
+  settingsPage.classList.toggle("hidden", page !== "hanzi");
+  pinyinSettingsPage.classList.toggle("hidden", page !== "pinyin");
+  practicePage.classList.add("hidden");
+  practiceStats.classList.add("hidden");
+  updateNavigation(page);
+  state.dailyStats = loadDailyStats();
+  renderDailyStats();
+  renderProgressionUI();
+  if (page === "hanzi") renderSavedLists();
+}
+
+function switchTrainingDomain(domain) {
+  switchAppPage(domain === "pinyin" ? "pinyin" : "hanzi");
+}
+
+function updateNavigation(page) {
+  document.querySelectorAll(".training-domain-tabs [data-app-page]").forEach((button) => {
+    button.classList.toggle("active", button.dataset.appPage === page);
+  });
+}
+
+function renderProgressionUI() {
+  const profile = state.userProfile;
+  if (!profile) return;
+  const progress = window.MOYA_PROGRESS.getLevelProgress(profile);
+  profileName.textContent = profile.name;
+  profileLevel.textContent = progress.level.english;
+  profileStars.textContent = `${profile.totalStars} ★`;
+  homeLevelSummary.innerHTML = `
+    <div><span>${escapeHTML(progress.level.icon)}</span><strong>${escapeHTML(progress.level.name)}</strong><small>Lv.${window.MOYA_LEVELS.indexOf(progress.level) + 1}</small></div>
+    <div class="global-progress-track"><span style="width:${progress.percent}%"></span></div>
+    <p>${progress.next ? `距离 ${escapeHTML(progress.next.name)} 还需 ${progress.remaining} 颗星` : "你已经成为中文小大师"}</p>
+    <b>${profile.totalStars} ★</b>
+  `;
+  renderDailyTasks(profile);
+  renderCheckIn(profile);
+  renderAchievements(profile);
+  renderGrowthMap(profile, progress);
+}
+
+function renderDailyTasks(profile) {
+  const tasks = window.MOYA_PROGRESS.ensureTodayTasks(profile);
+  dailyTasksList.innerHTML = window.MOYA_DAILY_TASKS.map((task) => {
+    const status = tasks[task.id];
+    const complete = status.progress >= task.target;
+    const percent = Math.min(100, Math.round((status.progress / task.target) * 100));
+    return `<article class="daily-task-row">
+      <span class="task-icon" aria-hidden="true">${escapeHTML(task.icon)}</span>
+      <div><strong>${escapeHTML(task.name)}</strong><div class="task-progress"><span style="width:${percent}%"></span></div><small>${status.progress}/${task.target}</small></div>
+      <b>★ +${task.reward}</b>
+      <button type="button" data-claim-task="${escapeAttribute(task.id)}" ${!complete || status.claimed ? "disabled" : ""}>${status.claimed ? "已完成" : complete ? "领取" : "去完成"}</button>
+    </article>`;
+  }).join("");
+  dailyTasksList.querySelectorAll("[data-claim-task]").forEach((button) => {
+    button.addEventListener("click", () => {
+      const result = window.MOYA_PROGRESS.claimTask(state.userProfile, button.dataset.claimTask);
+      if (result?.amount) showGlobalStarToast(result.amount, result.reason);
+    });
+  });
+}
+
+function renderCheckIn(profile) {
+  const days = Array.from({ length: 7 }, (_, index) => new Date(Date.now() - (6 - index) * 86400000));
+  const today = window.MOYA_PROGRESS.dateKey();
+  checkInWeek.innerHTML = days.map((date) => {
+    const key = window.MOYA_PROGRESS.dateKey(date);
+    const checked = profile.checkInHistory.includes(key);
+    const isToday = key === today;
+    return `<div class="checkin-day ${checked ? "checked" : ""} ${isToday ? "today" : ""}">
+      <span>${date.toLocaleDateString("zh-CN", { weekday: "short" }).replace("周", "")}</span>
+      <b aria-label="${checked ? "已打卡" : "未打卡"}">${checked ? "★" : isToday ? "芽" : "·"}</b>
+      <small>${date.getMonth() + 1}.${date.getDate()}</small>
+    </div>`;
+  }).join("");
+  const nextReward = profile.streakDays < 3 ? `连续 3 天可额外获得 10 星` : profile.streakDays < 7 ? `连续 7 天可额外获得 30 星` : "坚持学习，每一天都在发光";
+  streakMessage.textContent = `已连续学习 ${profile.streakDays} 天 · ${nextReward}`;
+}
+
+function renderAchievements(profile) {
+  const cards = window.MOYA_ACHIEVEMENTS.map((achievement) => {
+    const unlock = profile.achievements[achievement.id];
+    return `<article class="achievement-card ${unlock ? "unlocked" : "locked"}">
+      <span aria-hidden="true">${unlock ? escapeHTML(achievement.icon) : "锁"}</span>
+      <strong>${escapeHTML(achievement.name)}</strong>
+      <small>${escapeHTML(achievement.condition)}</small>
+      <em>${unlock ? new Date(unlock.unlockedAt).toLocaleDateString("zh-CN") : achievement.future ? "未来开放" : "继续加油"}</em>
+    </article>`;
+  });
+  achievementPreviewList.innerHTML = cards.slice(0, 4).join("");
+  allAchievementsList.innerHTML = cards.join("");
+}
+
+function renderGrowthMap(profile, progress) {
+  levelDetail.innerHTML = `
+    <div class="level-emblem"><span>${escapeHTML(progress.level.icon)}</span></div>
+    <div class="level-copy"><p>当前等级</p><h3>${escapeHTML(progress.level.name)} <small>${escapeHTML(progress.level.english)}</small></h3><span>${escapeHTML(progress.level.description)}</span><div class="global-progress-track"><span style="width:${progress.percent}%"></span></div><b>${progress.next ? `再收集 ${progress.remaining} 颗星升级` : "最高等级已达成"}</b></div>
+    <strong>${profile.totalStars}<small>颗星</small></strong>
+  `;
+  growthMapAreas.innerHTML = window.MOYA_GROWTH_AREAS.map((area, index) => {
+    const unlocked = profile.unlockedAreas.includes(area.id);
+    return `<article class="map-area area-${index + 1} ${unlocked ? "unlocked" : "locked"}">
+      <span class="map-area-icon" aria-hidden="true">${unlocked ? escapeHTML(area.icon) : "锁"}</span>
+      <div><strong>${escapeHTML(area.name)}</strong><small>${escapeHTML(area.description)}</small></div>
+      <b>${unlocked ? "已点亮" : area.future ? "即将开放" : `${area.unlockStars} 星解锁`}</b>
+    </article>`;
+  }).join("");
+}
+
+function showGlobalStarToast(amount, reason) {
+  const toast = document.createElement("div");
+  toast.className = "global-star-toast";
+  toast.innerHTML = `<strong>★ +${amount}</strong><span>${escapeHTML(reason)}</span>`;
+  document.body.appendChild(toast);
+  window.setTimeout(() => toast.remove(), 1800);
+}
+
+function renderPinyinSyllabus() {
+  pinyinSyllabusNode.innerHTML = "";
+  PINYIN_SYLLABUS.forEach((lesson, index) => {
+    const card = document.createElement("label");
+    card.className = "syllabus-card";
+    card.innerHTML = `
+      <input type="checkbox" data-pinyin-lesson="${escapeAttribute(lesson.id)}" ${index === 0 ? "checked" : ""} />
+      <span class="syllabus-order">${escapeHTML(lesson.order)}</span>
+      <span class="syllabus-copy">
+        <small>${escapeHTML(lesson.phase)}</small>
+        <strong>${escapeHTML(lesson.title)}</strong>
+        <span>${escapeHTML(lesson.rule)}</span>
+        <em>${escapeHTML(lesson.items.map((item) => item.pinyin).join(" · "))}</em>
+      </span>
+    `;
+    pinyinSyllabusNode.appendChild(card);
+  });
+}
+
+function selectPinyinPhase(phase) {
+  document.querySelectorAll("[data-pinyin-lesson]").forEach((field) => {
+    const lesson = PINYIN_SYLLABUS.find((item) => item.id === field.dataset.pinyinLesson);
+    field.checked = phase === "all" || lesson?.phase === phase;
+  });
 }
 
 function getSelectedPracticeChars() {
@@ -279,6 +588,98 @@ function getSelectedPracticeChars() {
   const listChars = Array.from(document.querySelectorAll("[data-list-select]:checked"))
     .flatMap((field) => state.savedLists.find((list) => list.id === field.dataset.listSelect)?.chars || []);
   return Array.from(new Set([...typedChars, ...listChars]));
+}
+
+function getCurriculumVolumes() {
+  return window.MOYA_HANZI_CURRICULUM?.volumes || [];
+}
+
+function getCurrentCurriculumVolume() {
+  const volumes = getCurriculumVolumes();
+  return volumes.find((volume) => volume.id === state.curriculumVolumeId) || volumes[0];
+}
+
+function getVolumeCharacters(volume) {
+  return Array.from(new Set(volume?.groups.flatMap((group) => Array.from(group.characters)) || []));
+}
+
+function renderCurriculumPicker() {
+  const volumes = getCurriculumVolumes();
+  const volume = getCurrentCurriculumVolume();
+  if (!volume || !curriculumVolumesNode) return;
+
+  state.curriculumVolumeId = volume.id;
+  curriculumVolumesNode.innerHTML = volumes.map((item) => `
+    <button type="button" data-curriculum-volume="${escapeAttribute(item.id)}" class="${item.id === volume.id ? "active" : ""}" aria-pressed="${item.id === volume.id}">
+      <span>${escapeHTML(item.label)}</span><small>${item.characterCount} 字</small>
+    </button>
+  `).join("");
+  curriculumVolumesNode.querySelectorAll("[data-curriculum-volume]").forEach((button) => {
+    button.addEventListener("click", () => {
+      state.curriculumVolumeId = button.dataset.curriculumVolume;
+      renderCurriculumPicker();
+    });
+  });
+
+  const volumeCharacters = getVolumeCharacters(volume);
+  const selectedInVolume = volumeCharacters.filter((char) => state.curriculumSelectedCharacters.has(char)).length;
+  curriculumVolumeSummary.textContent = `${volume.label} · 已选 ${selectedInVolume}/${volumeCharacters.length} 字`;
+  curriculumGroupsNode.innerHTML = volume.groups.map((group) => {
+    const chars = Array.from(group.characters);
+    const selectedCount = chars.filter((char) => state.curriculumSelectedCharacters.has(char)).length;
+    const isComplete = selectedCount === chars.length;
+    return `
+      <button type="button" data-curriculum-group="${escapeAttribute(group.id)}" class="${isComplete ? "selected" : ""}" aria-pressed="${isComplete}">
+        <span>${escapeHTML(group.title)}</span><small>${selectedCount}/${chars.length}</small>
+      </button>
+    `;
+  }).join("");
+  curriculumGroupsNode.querySelectorAll("[data-curriculum-group]").forEach((button) => {
+    button.addEventListener("click", () => toggleCurriculumGroup(button.dataset.curriculumGroup));
+  });
+
+  curriculumCharactersNode.innerHTML = volumeCharacters.map((char) => {
+    const selected = state.curriculumSelectedCharacters.has(char);
+    return `<button type="button" data-curriculum-character="${char}" class="${selected ? "selected" : ""}" aria-pressed="${selected}" aria-label="${char}${selected ? "，已选择" : ""}">${char}</button>`;
+  }).join("");
+  curriculumCharactersNode.querySelectorAll("[data-curriculum-character]").forEach((button) => {
+    button.addEventListener("click", () => {
+      const char = button.dataset.curriculumCharacter;
+      if (state.curriculumSelectedCharacters.has(char)) state.curriculumSelectedCharacters.delete(char);
+      else state.curriculumSelectedCharacters.add(char);
+      renderCurriculumPicker();
+    });
+  });
+
+  curriculumSelectedCount.textContent = String(state.curriculumSelectedCharacters.size);
+  addCurriculumCharactersButton.disabled = state.curriculumSelectedCharacters.size === 0;
+}
+
+function toggleCurriculumGroup(groupId) {
+  const group = getCurrentCurriculumVolume()?.groups.find((item) => item.id === groupId);
+  if (!group) return;
+  const chars = Array.from(group.characters);
+  const remove = chars.every((char) => state.curriculumSelectedCharacters.has(char));
+  chars.forEach((char) => remove
+    ? state.curriculumSelectedCharacters.delete(char)
+    : state.curriculumSelectedCharacters.add(char));
+  renderCurriculumPicker();
+}
+
+function selectCurrentCurriculumVolume() {
+  getVolumeCharacters(getCurrentCurriculumVolume()).forEach((char) => state.curriculumSelectedCharacters.add(char));
+  renderCurriculumPicker();
+}
+
+function clearCurriculumSelection() {
+  state.curriculumSelectedCharacters.clear();
+  renderCurriculumPicker();
+}
+
+function addCurriculumCharactersToPractice() {
+  const current = Array.from(input.value).filter(isChineseChar);
+  input.value = Array.from(new Set([...current, ...state.curriculumSelectedCharacters])).join("");
+  input.focus();
 }
 
 function getCheckedListChars() {
@@ -475,6 +876,7 @@ function render() {
   if (state.mode === "charToPinyin") renderChoiceQuiz("charToPinyin");
   if (state.mode === "wordPractice") renderChoiceQuiz("wordPractice");
   if (state.mode === "assemble") renderAssembly();
+  if (isPinyinTrainingMode(state.mode)) renderPinyinQuiz(state.mode);
   startTimer();
 }
 
@@ -488,11 +890,12 @@ function renderChoiceQuiz(mode) {
   const promptClass = getPromptClass(mode);
 
   practiceArea.innerHTML = `
-    <article class="quiz-card">
-      <div>
+    <article class="quiz-card mode-${escapeAttribute(mode)} ${answered ? "answered" : ""}">
+      ${getQuizJourneyHTML()}
+      <section class="question-stage">
         <p class="question-kicker">${kicker}</p>
         <p class="${promptClass}">${prompt}</p>
-      </div>
+      </section>
       <div class="answer-options" id="answerOptions"></div>
       <div id="feedback" class="feedback"></div>
       <div class="card-actions">
@@ -540,6 +943,296 @@ function renderChoiceQuiz(mode) {
     state.timedOutQuestions.delete(currentQuestionKey());
     render();
   });
+}
+
+function isPinyinTrainingMode(mode) {
+  return ["pinyinAudioToSymbol", "pinyinSymbolToAudio", "pinyinSymbolToChar"].includes(mode);
+}
+
+function renderPinyinQuiz(mode) {
+  stopAudioOptionSequence();
+  stopSpeech();
+  const entry = currentEntry();
+  const options = getPinyinChoiceOptions(entry, mode);
+  const questionTimedOut = state.timedOutQuestions.has(currentQuestionKey());
+  const answered = state.selectedAnswer !== null || questionTimedOut;
+  const kicker = {
+    pinyinAudioToSymbol: "听读音，选择正确的拼音",
+    pinyinSymbolToAudio: "听一听三个读音，选择与拼音相同的一项",
+    pinyinSymbolToChar: "选择与这个拼音匹配的汉字",
+  }[mode];
+  const prompt = mode === "pinyinAudioToSymbol"
+    ? `<button class="sound-prompt-button" type="button" id="replayPinyinSound">播放读音</button>`
+    : `<p class="prompt-display pinyin pinyin-training-prompt">${escapeHTML(entry.pinyin)}</p>`;
+
+  practiceArea.innerHTML = `
+    <article class="quiz-card pinyin-quiz-card mode-${escapeAttribute(mode)} ${answered ? "answered" : ""}">
+      ${getQuizJourneyHTML()}
+      <div class="pinyin-lesson-label">
+        <span>${escapeHTML(entry.lessonTitle)}</span>
+        <small>${escapeHTML(entry.lessonRule)}</small>
+      </div>
+      <section class="question-stage pinyin-question-stage">
+        <p class="question-kicker">${kicker}</p>
+        ${prompt}
+      </section>
+      <div class="${mode === "pinyinSymbolToAudio" ? "audio-answer-options" : "answer-options"}" id="pinyinAnswerOptions"></div>
+      <div id="feedback" class="feedback"></div>
+      <div class="card-actions">
+        <button class="primary-action" type="button" id="nextPinyinCard">下一题</button>
+        ${mode === "pinyinSymbolToAudio" ? "" : '<button class="secondary-action" type="button" id="replayCurrentPinyin">再听一次</button>'}
+      </div>
+    </article>
+  `;
+
+  const optionsNode = document.querySelector("#pinyinAnswerOptions");
+  options.forEach((option, index) => {
+    if (mode === "pinyinSymbolToAudio") {
+      const choice = document.createElement("div");
+      choice.className = "audio-choice";
+      if (state.selectedAnswer) {
+        if (option.value === getPinyinCorrectValue(entry, mode)) choice.classList.add("correct");
+        if (option.value === state.selectedAnswer && option.value !== getPinyinCorrectValue(entry, mode)) {
+          choice.classList.add("wrong");
+        }
+      }
+      choice.innerHTML = `
+        <strong>读音 ${index + 1}</strong>
+        <button class="audio-replay-button" type="button" aria-label="重听读音 ${index + 1}" data-pinyin-play="${escapeAttribute(option.item.id)}"><span aria-hidden="true">↻</span><span>重听</span></button>
+        <button class="audio-select-button" type="button" aria-label="选择读音 ${index + 1}" data-pinyin-select="${escapeAttribute(option.value)}" ${answered ? "disabled" : ""}><span aria-hidden="true">✓</span><span>选择</span></button>
+      `;
+      choice.dataset.audioOption = option.item.id;
+      optionsNode.appendChild(choice);
+      return;
+    }
+
+    const button = document.createElement("button");
+    button.type = "button";
+    button.textContent = option.label;
+    button.disabled = answered;
+    if (state.selectedAnswer) {
+      if (option.value === getPinyinCorrectValue(entry, mode)) button.classList.add("correct");
+      if (option.value === state.selectedAnswer && option.value !== getPinyinCorrectValue(entry, mode)) {
+        button.classList.add("wrong");
+      }
+    }
+    button.addEventListener("click", () => submitPinyinAnswer(option.value, entry, mode));
+    optionsNode.appendChild(button);
+  });
+
+  optionsNode.querySelectorAll("[data-pinyin-play]").forEach((button) => {
+    button.addEventListener("click", () => {
+      const option = options.find((item) => item.item.id === button.dataset.pinyinPlay);
+      if (option) {
+        stopAudioOptionSequence();
+        playHighlightedPinyinOption(option);
+      }
+    });
+  });
+  optionsNode.querySelectorAll("[data-pinyin-select]").forEach((button) => {
+    button.addEventListener("click", () => submitPinyinAnswer(button.dataset.pinyinSelect, entry, mode));
+  });
+
+  document.querySelector("#replayPinyinSound")?.addEventListener("click", () => speakPinyinItem(entry));
+  document.querySelector("#replayCurrentPinyin")?.addEventListener("click", () => speakPinyinItem(entry));
+  document.querySelector("#nextPinyinCard").addEventListener("click", nextCard);
+
+  if (mode === "pinyinAudioToSymbol" && !answered) {
+    window.setTimeout(() => speakPinyinItem(entry), 80);
+  }
+  if (mode === "pinyinSymbolToAudio" && !answered) {
+    startAudioOptionSequence(options);
+  }
+}
+
+function startAudioOptionSequence(options) {
+  stopAudioOptionSequence();
+  const token = state.audioSequenceToken;
+  const playNext = (index) => {
+    if (token !== state.audioSequenceToken || index >= options.length) {
+      setActiveAudioChoice(null);
+      return;
+    }
+    playHighlightedPinyinOption(options[index], () => {
+      if (token !== state.audioSequenceToken) return;
+      state.audioSequenceTimer = window.setTimeout(() => playNext(index + 1), 450);
+    });
+  };
+  state.audioSequenceTimer = window.setTimeout(() => playNext(0), 450);
+}
+
+function stopAudioOptionSequence() {
+  state.audioSequenceToken += 1;
+  if (state.audioSequenceTimer) {
+    window.clearTimeout(state.audioSequenceTimer);
+    state.audioSequenceTimer = null;
+  }
+  setActiveAudioChoice(null);
+}
+
+function playHighlightedPinyinOption(option, onEnded) {
+  setActiveAudioChoice(option.item.id);
+  speakPinyinItem(option.item, {
+    onStart: () => setActiveAudioChoice(option.item.id),
+    onEnd: () => {
+      setActiveAudioChoice(null);
+      onEnded?.();
+    },
+  });
+}
+
+function setActiveAudioChoice(itemId) {
+  document.querySelectorAll("[data-audio-option]").forEach((choice) => {
+    choice.classList.toggle("is-playing", Boolean(itemId) && choice.dataset.audioOption === itemId);
+  });
+}
+
+function getPinyinChoiceOptions(entry, mode) {
+  const key = `${mode}:${entry.id}`;
+  if (state.choiceOptions.has(key)) return state.choiceOptions.get(key);
+  const correct = makePinyinOption(entry, mode);
+  const syllabusItems = PINYIN_SYLLABUS.flatMap((lesson) =>
+    lesson.items.map((item, index) => ({
+      ...item,
+      id: `${lesson.id}:${index}:${item.pinyin}`,
+    }))
+  );
+  const primaryPool = uniquePinyinOptions(
+    entry.lessonItems.filter((item) => item.id !== entry.id).map((item) => makePinyinOption(item, mode))
+  ).filter((option) => option.value !== correct.value);
+  const primaryValues = new Set(primaryPool.map((option) => option.value));
+  const fallbackPool = uniquePinyinOptions(
+    [...state.entries, ...syllabusItems]
+      .filter((item) => item.id !== entry.id)
+      .map((item) => makePinyinOption(item, mode))
+  ).filter((option) => option.value !== correct.value && !primaryValues.has(option.value));
+  const optionCount = ["pinyinAudioToSymbol", "pinyinSymbolToAudio"].includes(mode) ? 3 : 4;
+  const distractors = [...shuffle(primaryPool), ...shuffle(fallbackPool)].slice(0, optionCount - 1);
+  const options = shuffle([correct, ...distractors]);
+  state.choiceOptions.set(key, options);
+  return options;
+}
+
+function makePinyinOption(item, mode) {
+  if (mode === "pinyinSymbolToChar") return { value: item.char, label: item.char, item };
+  if (mode === "pinyinSymbolToAudio") return { value: item.id, label: item.audio, item };
+  return { value: item.pinyin, label: item.pinyin, item };
+}
+
+function uniquePinyinOptions(options) {
+  const seen = new Set();
+  return options.filter((option) => {
+    if (!option.value || seen.has(option.value)) return false;
+    seen.add(option.value);
+    return true;
+  });
+}
+
+function getPinyinCorrectValue(entry, mode) {
+  if (mode === "pinyinSymbolToChar") return entry.char;
+  if (mode === "pinyinSymbolToAudio") return entry.id;
+  return entry.pinyin;
+}
+
+function getPinyinCorrectLabel(entry, mode) {
+  if (mode === "pinyinSymbolToChar") return entry.char;
+  if (mode === "pinyinSymbolToAudio") return entry.audio;
+  return entry.pinyin;
+}
+
+function submitPinyinAnswer(value, entry, mode) {
+  if (state.timedOutQuestions.has(currentQuestionKey()) || state.selectedAnswer !== null) return;
+  state.selectedAnswer = value;
+  const isCorrect = value === getPinyinCorrectValue(entry, mode);
+  const scoreChange = recordScore(isCorrect);
+  stopTimer();
+  stopAudioOptionSequence();
+  stopSpeech();
+  renderPinyinQuiz(mode);
+  const feedback = document.querySelector("#feedback");
+  feedback.textContent = isCorrect
+    ? `答对了。${formatScoreChange(scoreChange)}`
+    : `正确答案是 ${getPinyinCorrectLabel(entry, mode)}。${formatScoreChange(scoreChange)}`;
+  feedback.className = `feedback ${isCorrect ? "good" : "bad"}`;
+  if (isCorrect) {
+    if (scoreChange > 0) launchStarBurst();
+    scheduleAutoNext();
+  }
+}
+
+function speakPinyinItem(item, events = {}) {
+  const recording = window.PINYIN_AUDIO_FILES?.[item.recordingKey || item.audio];
+  if (recording?.systemVoice) return speakPinyinWithSystemVoice(item, events);
+  if (recording?.src && "Audio" in window) {
+    stopSpeech();
+    const player = new window.Audio(recording.src);
+    player.preload = "auto";
+    player.playbackRate = recording.rate || 0.92;
+    let settled = false;
+    const fallback = () => {
+      if (settled) return;
+      settled = true;
+      state.audioFallbackId = null;
+      player.pause();
+      if (state.audioPlayer === player) state.audioPlayer = null;
+      speakPinyinWithSystemVoice(item, events);
+    };
+    const fallbackId = window.setTimeout(fallback, 3000);
+    state.audioFallbackId = fallbackId;
+    player.addEventListener("playing", () => {
+      settled = true;
+      window.clearTimeout(fallbackId);
+      state.audioFallbackId = null;
+      events.onStart?.();
+    }, { once: true });
+    player.addEventListener("ended", () => {
+      if (state.audioPlayer === player) state.audioPlayer = null;
+      events.onEnd?.();
+    }, { once: true });
+    player.addEventListener("error", fallback, { once: true });
+    state.audioPlayer = player;
+    player.play().catch(fallback);
+    return true;
+  }
+  return speakPinyinWithSystemVoice(item, events);
+}
+
+function speakPinyinWithSystemVoice(item, events = {}) {
+  if (!("speechSynthesis" in window) || !("SpeechSynthesisUtterance" in window)) {
+    events.onEnd?.();
+    return false;
+  }
+  if ("speechSynthesis" in window) window.speechSynthesis.cancel();
+  const utterance = new window.SpeechSynthesisUtterance(item.audio || item.char || item.pinyin);
+  utterance.lang = "zh-CN";
+  utterance.rate = 0.72;
+  utterance.pitch = 1;
+  let completed = false;
+  const complete = () => {
+    if (completed) return;
+    completed = true;
+    events.onEnd?.();
+  };
+  utterance.onstart = () => events.onStart?.();
+  utterance.onend = complete;
+  utterance.onerror = complete;
+  const voice = window.speechSynthesis.getVoices().find((itemVoice) => /^zh-(CN|Hans)/i.test(itemVoice.lang));
+  if (voice) utterance.voice = voice;
+  window.speechSynthesis.speak(utterance);
+  return true;
+}
+
+function stopSpeech() {
+  if (state.audioFallbackId) {
+    window.clearTimeout(state.audioFallbackId);
+    state.audioFallbackId = null;
+  }
+  if (state.audioPlayer) {
+    state.audioPlayer.pause();
+    state.audioPlayer.currentTime = 0;
+    state.audioPlayer = null;
+  }
+  if ("speechSynthesis" in window) window.speechSynthesis.cancel();
 }
 
 function buildOptions(entry, mode) {
@@ -690,7 +1383,8 @@ function renderAssembly() {
   const questionTimedOut = state.timedOutQuestions.has(currentQuestionKey());
 
   practiceArea.innerHTML = `
-    <div class="assemble-shell">
+    <div class="assemble-shell ${isComplete || questionTimedOut ? "answered" : ""}">
+      <div class="assembly-journey">${getQuizJourneyHTML()}</div>
       <div class="tianzige layout-${escapeAttribute(entry.layout)}" id="tianzige" aria-label="田字格"></div>
       <div class="assemble-panel">
         <div class="assembly-prompt">
@@ -893,14 +1587,20 @@ function recordScore(isCorrect) {
   const delta = isCorrect ? state.rewardStars[state.mode] || 1 : -1;
   state.score += delta;
   updateScoreDisplay();
-  updateDailyStats({ correct: isCorrect, stars: delta });
+  updateDailyStats({ correct: isCorrect, stars: delta, type: state.mode });
+  window.MOYA_PROGRESS.recordAnswer(state.userProfile, {
+    correct: isCorrect,
+    domain: isPinyinTrainingMode(state.mode) ? "pinyin" : "hanzi",
+    type: state.mode,
+    review: state.isMistakeReview,
+  });
   return delta;
 }
 
 function recordAssemblyMistake() {
   state.score -= 1;
   updateScoreDisplay();
-  updateDailyStats({ correct: false, stars: -1 });
+  updateDailyStats({ correct: false, stars: -1, type: state.mode });
   return -1;
 }
 
@@ -913,7 +1613,7 @@ function dailyStorageKey() {
 }
 
 function loadDailyStats() {
-  const fallback = { date: todayKey(), stars: 0, done: 0, correct: 0, wrong: 0 };
+  const fallback = { date: todayKey(), stars: 0, done: 0, correct: 0, wrong: 0, byType: {}, wrongItems: [] };
   try {
     return { ...fallback, ...JSON.parse(localStorage.getItem(dailyStorageKey())) };
   } catch {
@@ -927,6 +1627,8 @@ function saveDailyStats() {
 
 function updateDailyStats(result) {
   if (!state.dailyStats || state.dailyStats.date !== todayKey()) state.dailyStats = loadDailyStats();
+  if (!state.dailyStats.byType) state.dailyStats.byType = {};
+  if (!Array.isArray(state.dailyStats.wrongItems)) state.dailyStats.wrongItems = [];
   state.dailyStats.done += 1;
   state.dailyStats.stars += result.stars;
   if (result.correct) {
@@ -934,6 +1636,13 @@ function updateDailyStats(result) {
   } else {
     state.dailyStats.wrong += 1;
   }
+  updateTypeStats(state.dailyStats.byType, result.type, result);
+  if (result.correct && state.isMistakeReview) {
+    resolveCurrentDailyMistake();
+  } else if (!result.correct) {
+    saveCurrentDailyMistake();
+  }
+  updateCurrentSession(result);
   saveDailyStats();
   renderDailyStats();
 }
@@ -948,10 +1657,201 @@ function renderDailyStats() {
   dailySummary.textContent = stats.done
     ? `今日正确率 ${Math.round((stats.correct / stats.done) * 100)}%`
     : "今天还没有成绩。";
+  renderCategoryReport(aggregateSessionTypeStats());
+  renderSessionHistory();
+  renderMistakeReviewButton(stats.wrongItems || []);
+}
+
+function saveCurrentDailyMistake() {
+  const question = currentQuestionItem();
+  if (!question?.entry) return;
+  const mistakeId = question.mistakeId || question.id;
+  const existing = state.dailyStats.wrongItems.find((item) => item.id === mistakeId);
+  if (existing) {
+    existing.wrongCount += 1;
+    existing.lastWrongAt = new Date().toISOString();
+    return;
+  }
+  state.dailyStats.wrongItems.push({
+    id: mistakeId,
+    type: question.type,
+    entry: JSON.parse(JSON.stringify(question.entry)),
+    wrongCount: 1,
+    lastWrongAt: new Date().toISOString(),
+  });
+}
+
+function resolveCurrentDailyMistake() {
+  const question = currentQuestionItem();
+  const mistakeId = question?.mistakeId || question?.id;
+  state.dailyStats.wrongItems = state.dailyStats.wrongItems.filter((item) => item.id !== mistakeId);
+}
+
+function renderMistakeReviewButton(items) {
+  mistakeCount.textContent = items.length;
+  reviewMistakesButton.disabled = items.length === 0;
+}
+
+function startMistakeReview() {
+  const daily = loadDailyStats();
+  const mistakes = Array.isArray(daily.wrongItems) ? daily.wrongItems : [];
+  if (!mistakes.length) return;
+  stopTimer();
+  stopSpeech();
+  stopAudioOptionSequence();
+  clearAutoNext();
+  state.isMistakeReview = true;
+  state.sessionStartedAt = Date.now();
+  state.progressionFinalized = false;
+  state.trainingDomain = "review";
+  state.entries = mistakes.map((item) => item.entry);
+  state.questionQueue = mistakes.map((item, index) => ({
+    entry: item.entry,
+    type: item.type,
+    id: `review:${index}:${item.id}`,
+    mistakeId: item.id,
+  }));
+  state.screen = "practice";
+  state.activeIndex = 0;
+  state.mode = state.questionQueue[0].type;
+  state.selectedAnswer = null;
+  state.placed = {};
+  state.assemblyChoices = [];
+  state.assemblyChoicesKey = "";
+  state.assemblyWrongScored = false;
+  state.choiceOptions = new Map();
+  state.score = 0;
+  state.scoredQuestions = new Set();
+  state.timedOutQuestions = new Set();
+  state.dailyStats = daily;
+  settingsPage.classList.add("hidden");
+  pinyinSettingsPage.classList.add("hidden");
+  settingsOnlyNodes.forEach((node) => node.classList.add("hidden"));
+  practicePage.classList.remove("hidden");
+  practiceStats.classList.remove("hidden");
+  beginTrainingSession("review", [...new Set(mistakes.map((item) => item.type))]);
+  renderDailyStats();
+  render();
+}
+
+function updateTypeStats(target, type, result) {
+  if (!type) return;
+  const stats = target[type] || { done: 0, correct: 0, wrong: 0, stars: 0 };
+  stats.done += 1;
+  stats.stars += result.stars;
+  stats[result.correct ? "correct" : "wrong"] += 1;
+  target[type] = stats;
+}
+
+function beginTrainingSession(domain, types) {
+  state.currentSession = {
+    id: `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+    domain,
+    types,
+    startedAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+    completedAt: null,
+    stars: 0,
+    done: 0,
+    correct: 0,
+    wrong: 0,
+    byType: {},
+  };
+  upsertCurrentSession();
+}
+
+function updateCurrentSession(result) {
+  if (!state.currentSession) return;
+  state.currentSession.updatedAt = new Date().toISOString();
+  state.currentSession.stars = state.score;
+  state.currentSession.done += 1;
+  state.currentSession[result.correct ? "correct" : "wrong"] += 1;
+  updateTypeStats(state.currentSession.byType, result.type, result);
+  upsertCurrentSession();
+}
+
+function upsertCurrentSession() {
+  if (!state.currentSession) return;
+  const existingIndex = state.sessionHistory.findIndex((item) => item.id === state.currentSession.id);
+  const snapshot = JSON.parse(JSON.stringify(state.currentSession));
+  if (existingIndex >= 0) state.sessionHistory.splice(existingIndex, 1);
+  state.sessionHistory.unshift(snapshot);
+  state.sessionHistory = state.sessionHistory.slice(0, 30);
+  localStorage.setItem("hanzi-practice:sessions", JSON.stringify(state.sessionHistory));
+}
+
+function loadSessionHistory() {
+  try {
+    const stored = JSON.parse(localStorage.getItem("hanzi-practice:sessions"));
+    return Array.isArray(stored) ? stored.slice(0, 30) : [];
+  } catch {
+    return [];
+  }
+}
+
+function aggregateSessionTypeStats() {
+  const totals = {};
+  state.sessionHistory.forEach((session) => {
+    Object.entries(session.byType || {}).forEach(([type, stats]) => {
+      const target = totals[type] || { done: 0, correct: 0, wrong: 0, stars: 0 };
+      target.done += stats.done || 0;
+      target.correct += stats.correct || 0;
+      target.wrong += stats.wrong || 0;
+      target.stars += stats.stars || 0;
+      totals[type] = target;
+    });
+  });
+  return totals;
+}
+
+function renderCategoryReport(byType) {
+  const rows = Object.entries(byType).sort((a, b) => b[1].done - a[1].done);
+  categoryReportList.innerHTML = rows.length
+    ? rows.map(([type, stats]) => {
+        const accuracy = stats.done ? Math.round((stats.correct / stats.done) * 100) : 0;
+        return `<div class="category-report-row">
+          <div><strong>${escapeHTML(QUESTION_TYPE_LABELS[type] || type)}</strong><span>${stats.correct}/${stats.done} 题</span></div>
+          <div class="accuracy-track"><span style="width:${accuracy}%"></span></div>
+          <b>${accuracy}%</b>
+        </div>`;
+      }).join("")
+    : '<p class="scoreboard-empty">完成题目后，这里会出现分类成绩。</p>';
+}
+
+function renderSessionHistory() {
+  const rows = state.sessionHistory.slice(0, 5);
+  sessionHistoryList.innerHTML = rows.length
+    ? rows.map((session) => {
+        const date = new Date(session.startedAt);
+        const accuracy = session.done ? Math.round((session.correct / session.done) * 100) : 0;
+        return `<div class="session-history-row">
+          <span>${escapeHTML(date.toLocaleDateString("zh-CN", { month: "numeric", day: "numeric" }))}<small>${escapeHTML(date.toLocaleTimeString("zh-CN", { hour: "2-digit", minute: "2-digit" }))}</small></span>
+          <strong>${session.domain === "pinyin" ? "拼音" : session.domain === "review" ? "错题" : "汉字"} ${session.done}题</strong>
+          <b>${accuracy}% · ${session.stars}★</b>
+        </div>`;
+      }).join("")
+    : '<p class="scoreboard-empty">还没有训练记录。</p>';
+}
+
+function getQuizJourneyHTML() {
+  const total = Math.max(1, state.questionQueue.length);
+  const current = Math.min(total, state.activeIndex + 1);
+  const percent = Math.round((current / total) * 100);
+  return `<div class="quiz-journey" aria-label="答题进度 ${current} / ${total}">
+    <span class="journey-mascot" aria-hidden="true"></span>
+    <div class="journey-track"><span style="width:${percent}%"></span></div>
+    <div class="journey-stats">
+      <strong>${current}/${total}</strong>
+      <span id="journeyTimer">${Math.max(0, state.timeLeft || state.timerDuration)}s</span>
+      <b>${state.score} ★</b>
+    </div>
+  </div>`;
 }
 
 function updateScoreDisplay() {
   scoreText.textContent = `${state.score} ★`;
+  const journeyScore = document.querySelector(".journey-stats b");
+  if (journeyScore) journeyScore.textContent = `${state.score} ★`;
   const count = Math.max(0, Math.min(12, state.score));
   scoreStars.textContent = "★".repeat(count);
 }
@@ -959,21 +1859,28 @@ function updateScoreDisplay() {
 function startTimer() {
   stopTimer();
   if (!state.entries.length || state.mode === "library") {
-    timerText.textContent = `${state.timerDuration}s`;
+    updateTimerDisplays(state.timerDuration);
     return;
   }
   const key = currentQuestionKey();
   if (state.selectedAnswer || state.timedOutQuestions.has(key)) {
-    timerText.textContent = `${state.timeLeft}s`;
+    updateTimerDisplays(state.timeLeft);
     return;
   }
   state.timeLeft = state.timerDuration;
-  timerText.textContent = `${state.timeLeft}s`;
+  updateTimerDisplays(state.timeLeft);
   state.timerId = window.setInterval(() => {
     state.timeLeft -= 1;
-    timerText.textContent = `${Math.max(0, state.timeLeft)}s`;
+    updateTimerDisplays(state.timeLeft);
     if (state.timeLeft <= 0) handleTimeout();
   }, 1000);
+}
+
+function updateTimerDisplays(seconds) {
+  const label = `${Math.max(0, Number(seconds) || 0)}s`;
+  timerText.textContent = label;
+  const journeyTimer = document.querySelector("#journeyTimer");
+  if (journeyTimer) journeyTimer.textContent = label;
 }
 
 function stopTimer() {
@@ -1014,6 +1921,13 @@ function handleTimeout() {
     renderAssembly();
     const feedback = document.querySelector("#assemblyFeedback");
     feedback.textContent = `时间到。${formatScoreChange(scoreChange)}`;
+    feedback.className = "feedback bad";
+  }
+  if (isPinyinTrainingMode(state.mode)) {
+    stopSpeech();
+    renderPinyinQuiz(state.mode);
+    const feedback = document.querySelector("#feedback");
+    feedback.textContent = `时间到。正确答案是 ${getPinyinCorrectLabel(currentEntry(), state.mode)}。${formatScoreChange(scoreChange)}`;
     feedback.className = "feedback bad";
   }
 }
@@ -1085,12 +1999,21 @@ function renderLibrary() {
 
 function renderComplete() {
   stopTimer();
+  stopSpeech();
   clearAutoNext();
+  finalizeProgressionSession();
+  if (state.currentSession && !state.currentSession.completedAt) {
+    state.currentSession.completedAt = new Date().toISOString();
+    state.currentSession.updatedAt = state.currentSession.completedAt;
+    upsertCurrentSession();
+    renderDailyStats();
+  }
   progressText.textContent = `${state.questionQueue.length} / ${state.questionQueue.length}`;
   timerText.textContent = "完成";
   practiceArea.innerHTML = `
-    <div class="empty-state">
+    <div class="empty-state completion-celebration">
       <div>
+        <div class="completion-medal" aria-hidden="true"></div>
         <h2>练习完成</h2>
         <p>本次获得 ${escapeHTML(state.score)} ★</p>
         <div class="card-actions">
@@ -1100,6 +2023,33 @@ function renderComplete() {
     </div>
   `;
   document.querySelector("#finishBack").addEventListener("click", showSettings);
+}
+
+function scrollPracticeIntoView() {
+  window.requestAnimationFrame(() => {
+    practicePage.scrollIntoView?.({ behavior: "smooth", block: "start" });
+  });
+}
+
+function finalizeProgressionSession() {
+  if (state.progressionFinalized) return;
+  state.progressionFinalized = true;
+  const elapsedMinutes = state.sessionStartedAt ? Math.floor((Date.now() - state.sessionStartedAt) / 60000) : 0;
+  window.MOYA_PROGRESS.recordStudyMinutes(state.userProfile, elapsedMinutes);
+  if (state.trainingDomain === "hanzi") {
+    const learned = window.MOYA_PROGRESS.learnCharacters(
+      state.userProfile,
+      state.entries.map((entry) => entry.char).filter(Boolean)
+    );
+    if (learned) showGlobalStarToast(learned * 5, `新学会 ${learned} 个汉字`);
+  } else if (state.trainingDomain === "pinyin") {
+    const lessonIds = state.entries.map((entry) => entry.lessonId).filter(Boolean);
+    window.MOYA_PROGRESS.completePinyinLessons(state.userProfile, lessonIds);
+    showGlobalStarToast(5, "完成拼音关卡");
+  } else if (state.isMistakeReview) {
+    window.MOYA_PROGRESS.awardStars(state.userProfile, 3, "完成一次复习任务");
+    showGlobalStarToast(3, "完成错题复习");
+  }
 }
 
 function updateEntryField(field) {
@@ -1141,6 +2091,7 @@ function currentQuestionItem() {
 
 function nextCard() {
   stopTimer();
+  stopSpeech();
   clearAutoNext();
   if (state.activeIndex >= state.questionQueue.length - 1) {
     renderComplete();

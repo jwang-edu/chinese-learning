@@ -3,17 +3,25 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>陪你练汉字</title>
+    <title>墨芽 MoYa</title>
     <link rel="stylesheet" href="styles.css" />
   </head>
   <body>
     <main class="app-shell">
       <section class="workspace" aria-label="汉字练习">
         <header class="topbar">
-          <div>
-            <p class="eyebrow">国风识字小课堂</p>
-            <h1>陪你练汉字</h1>
+          <div class="brand-lockup">
+            <span class="brand-sprout" aria-hidden="true">芽</span>
+            <div>
+            <p class="eyebrow">童蒙初启 · 日日新芽</p>
+            <h1>墨芽 <span class="brand-latin">MoYa</span></h1>
+            </div>
           </div>
+          <button id="profileChip" class="profile-chip" type="button" data-app-page="growth">
+            <span class="profile-avatar" aria-hidden="true"></span>
+            <span><strong id="profileName">小墨芽</strong><small id="profileLevel">Little Sprout</small></span>
+            <b id="profileStars">0 ★</b>
+          </button>
           <div class="student-stats practice-only" aria-live="polite">
             <div class="progress-pill">
               <span id="progressText">0 / 0</span>
@@ -29,9 +37,84 @@
           </div>
         </header>
 
-        <section id="settingsPage" class="settings-page" aria-label="练习设置">
+        <nav class="training-domain-tabs" aria-label="主要导航">
+          <button class="active" type="button" data-app-page="home"><span aria-hidden="true">舍</span>首页</button>
+          <button type="button" data-app-page="hanzi"><span aria-hidden="true">字</span>汉字乐园</button>
+          <button type="button" data-app-page="pinyin"><span aria-hidden="true">音</span>拼音乐园</button>
+          <button type="button" data-app-page="growth"><span aria-hidden="true">芽</span>我的成长</button>
+        </nav>
+
+        <div class="app-content-layout">
+          <div class="learning-main">
+
+        <section id="homePage" class="home-page" aria-label="墨芽首页">
+          <section class="moya-hero">
+            <div class="hero-copy">
+              <p class="hero-kicker">墨香轻落，新芽初生</p>
+              <h2>在汉字里，<br />遇见更美的世界</h2>
+              <p>在墨芽，每一个字都像一颗种子，陪你慢慢发芽，长成大树。</p>
+              <button id="heroStartLearning" class="hero-start-button" type="button">开始学习 <span aria-hidden="true">→</span></button>
+            </div>
+            <div class="hero-watercolor" aria-hidden="true"></div>
+          </section>
+
+          <section class="home-section learning-worlds" aria-labelledby="learningWorldsTitle">
+            <header><div><p>学习乐园</p><h2 id="learningWorldsTitle">今天想去哪里探索？</h2></div></header>
+            <div class="world-grid">
+              <button class="world-card hanzi-world" type="button" data-app-page="hanzi"><span class="world-art" aria-hidden="true"></span><strong>汉字乐园</strong><small>认读汉字，发现字形</small><b>进入乐园 →</b></button>
+              <button class="world-card pinyin-world" type="button" data-app-page="pinyin"><span class="world-art" aria-hidden="true"></span><strong>拼音乐园</strong><small>学习拼音，拼读音节</small><b>进入乐园 →</b></button>
+              <div class="world-card future-world reading-world"><span class="world-lock" aria-hidden="true">锁</span><strong>阅读花园</strong><small>绘本阅读，未来开放</small></div>
+              <div class="world-card future-world culture-world"><span class="world-lock" aria-hidden="true">锁</span><strong>文化小院</strong><small>传统文化，未来开放</small></div>
+            </div>
+          </section>
+
+          <div class="home-dashboard-grid">
+            <section class="home-panel planet-preview" aria-labelledby="planetPreviewTitle">
+              <header><p>我的星球</p><h2 id="planetPreviewTitle">小芽星球</h2></header>
+              <div class="mini-planet" aria-hidden="true"><span class="planet-school">院</span><span class="planet-bamboo">竹</span><span class="planet-star">★</span></div>
+              <div id="homeLevelSummary" class="home-level-summary"></div>
+              <button type="button" data-app-page="growth">查看成长地图 →</button>
+            </section>
+
+            <section class="home-panel daily-tasks-panel" aria-labelledby="dailyTasksTitle">
+              <header><p>每日一点进步</p><h2 id="dailyTasksTitle">今日任务</h2></header>
+              <div id="dailyTasksList" class="daily-tasks-list"></div>
+            </section>
+          </div>
+
+          <div class="home-dashboard-grid lower-dashboard">
+            <section class="home-panel checkin-panel" aria-labelledby="checkinTitle">
+              <header><p>日日相伴</p><h2 id="checkinTitle">每日打卡</h2></header>
+              <div id="checkInWeek" class="checkin-week"></div>
+              <p id="streakMessage" class="streak-message"></p>
+            </section>
+            <section class="home-panel achievement-preview" aria-labelledby="achievementPreviewTitle">
+              <header><p>一路收获</p><h2 id="achievementPreviewTitle">我的成就</h2></header>
+              <div id="achievementPreviewList" class="achievement-preview-list"></div>
+            </section>
+          </div>
+        </section>
+
+        <section id="growthPage" class="growth-page hidden" aria-label="我的成长地图">
+          <header class="growth-heading"><p class="eyebrow">一颗星，一步成长</p><h2>我的成长地图</h2><p>你学过的每一个字，都在小芽星球上留下了一束光。</p></header>
+          <section id="levelDetail" class="level-detail"></section>
+          <section class="growth-map" aria-labelledby="growthMapTitle">
+            <header><p>小芽星球</p><h2 id="growthMapTitle">探索中文世界</h2></header>
+            <div id="growthMapAreas" class="growth-map-areas"></div>
+          </section>
+          <section class="all-achievements" aria-labelledby="allAchievementsTitle">
+            <header><p>珍藏每一次进步</p><h2 id="allAchievementsTitle">成就册</h2></header>
+            <div id="allAchievementsList" class="all-achievements-list"></div>
+          </section>
+        </section>
+
+        <section id="settingsPage" class="settings-page hidden" aria-label="练习设置">
           <div class="settings-hero" aria-hidden="true">
             <div class="fruit-panda-art"></div>
+            <div class="settings-hero-copy">
+              <p>一笔一画认识汉字</p>
+              <h2>汉字练习</h2>
+            </div>
             <div class="hero-seal">练</div>
           </div>
 
@@ -50,6 +133,31 @@
             <button type="button" data-preset="海湖清河">偏旁</button>
             <button type="button" data-preset="想您意念">心部</button>
           </div>
+
+          <section class="curriculum-picker" aria-labelledby="curriculumTitle">
+            <div class="curriculum-header">
+              <div>
+                <p class="section-kicker">小学语文 · 一至六年级</p>
+                <h2 id="curriculumTitle">从教材写字表选字</h2>
+                <p>可以选择整册、整课，也可以逐个挑选要练习的字。</p>
+              </div>
+              <span class="curriculum-badge">统编版 · 12 册</span>
+            </div>
+            <div id="curriculumVolumes" class="curriculum-volumes" aria-label="选择册次"></div>
+            <div class="curriculum-toolbar">
+              <strong id="curriculumVolumeSummary">一年级上册</strong>
+              <div>
+                <button id="selectCurriculumVolume" type="button">选择整册</button>
+                <button id="clearCurriculumSelection" type="button">清空选择</button>
+              </div>
+            </div>
+            <div id="curriculumGroups" class="curriculum-groups" aria-label="按课次选择"></div>
+            <div id="curriculumCharacters" class="curriculum-characters" aria-label="按单字选择"></div>
+            <div class="curriculum-selection-bar">
+              <span>已选 <strong id="curriculumSelectedCount">0</strong> 个字</span>
+              <button id="addCurriculumCharacters" type="button" disabled>加入练习</button>
+            </div>
+          </section>
 
           <section class="list-manager" aria-labelledby="savedListsTitle">
             <div class="list-manager-header">
@@ -125,41 +233,92 @@
           </div>
         </section>
 
+        <section id="pinyinSettingsPage" class="settings-page pinyin-settings-page hidden" aria-label="拼音练习设置">
+          <header class="pinyin-settings-header">
+            <div>
+              <p class="eyebrow">循序渐进学拼音</p>
+              <h2>拼音训练大纲</h2>
+            </div>
+            <button id="startPinyinPractice" class="primary-action" type="button">开始拼音训练</button>
+          </header>
+
+          <div class="pinyin-settings-grid">
+            <fieldset class="kid-option-fieldset pinyin-exercise-fieldset">
+              <legend>练习题类型</legend>
+              <label class="kid-option"><input type="checkbox" data-pinyin-type="pinyinAudioToSymbol" checked /><span class="kid-option-mark">听</span><span class="kid-option-copy"><strong>听声音</strong><small>找出正确拼音</small></span></label>
+              <label class="kid-option"><input type="checkbox" data-pinyin-type="pinyinSymbolToAudio" checked /><span class="kid-option-mark">音</span><span class="kid-option-copy"><strong>看拼音</strong><small>找出正确声音</small></span></label>
+            </fieldset>
+
+            <fieldset class="kid-option-fieldset">
+              <legend>答题时间</legend>
+              <label class="kid-option compact"><input type="radio" name="pinyinTimerSetting" value="10" checked /><span class="kid-option-mark">10</span><span class="kid-option-copy"><strong>10 秒</strong><small>快速挑战</small></span></label>
+              <label class="kid-option compact"><input type="radio" name="pinyinTimerSetting" value="20" /><span class="kid-option-mark">20</span><span class="kid-option-copy"><strong>20 秒</strong><small>轻松作答</small></span></label>
+              <label class="kid-option compact"><input type="radio" name="pinyinTimerSetting" value="30" /><span class="kid-option-mark">30</span><span class="kid-option-copy"><strong>30 秒</strong><small>慢慢想一想</small></span></label>
+            </fieldset>
+
+            <fieldset class="kid-option-fieldset">
+              <legend>课程顺序</legend>
+              <label class="kid-option"><input type="radio" name="pinyinOrderSetting" value="ordered" checked /><span class="kid-option-mark">顺</span><span class="kid-option-copy"><strong>按顺序学</strong><small>跟着课程一步一步</small></span></label>
+              <label class="kid-option"><input type="radio" name="pinyinOrderSetting" value="random" /><span class="kid-option-mark">乱</span><span class="kid-option-copy"><strong>打乱练习</strong><small>复习已经学过的</small></span></label>
+            </fieldset>
+          </div>
+
+          <div class="syllabus-toolbar">
+            <strong>选择课程</strong>
+            <div>
+              <button id="selectSoundLessons" type="button">只选读音课</button>
+              <button id="selectCombineLessons" type="button">只选拼读课</button>
+              <button id="selectAllPinyinLessons" type="button">全选</button>
+              <button id="clearAllPinyinLessons" type="button">全不选</button>
+            </div>
+          </div>
+          <div id="pinyinSyllabus" class="pinyin-syllabus"></div>
+        </section>
+
         <section id="practicePage" class="practice-page hidden" aria-label="答题页面">
-          <section class="practice-layout with-scoreboard">
+          <section class="practice-layout">
             <section id="practiceArea" class="practice-area" aria-live="polite"></section>
-            <aside class="daily-scoreboard" aria-label="每日成绩">
-              <div class="scoreboard-header">
-                <span>每日成绩</span>
-                <strong id="dailyDate">今天</strong>
-              </div>
-              <div class="scoreboard-grid">
-                <div>
-                  <span>星星</span>
-                  <strong id="dailyStars">0 ★</strong>
-                </div>
-                <div>
-                  <span>作答</span>
-                  <strong id="dailyDone">0</strong>
-                </div>
-                <div>
-                  <span>答对</span>
-                  <strong id="dailyCorrect">0</strong>
-                </div>
-                <div>
-                  <span>答错</span>
-                  <strong id="dailyWrong">0</strong>
-                </div>
-              </div>
-              <div class="scoreboard-note" id="dailySummary">今天还没有成绩。</div>
-            </aside>
           </section>
         </section>
+          </div>
+
+          <aside class="daily-scoreboard" aria-label="每日成绩">
+            <div class="scoreboard-header">
+              <span>每日成绩</span>
+              <strong id="dailyDate">今天</strong>
+            </div>
+            <div class="scoreboard-grid">
+              <div><span>星星</span><strong id="dailyStars">0 ★</strong></div>
+              <div><span>作答</span><strong id="dailyDone">0</strong></div>
+              <div><span>答对</span><strong id="dailyCorrect">0</strong></div>
+              <div><span>答错</span><strong id="dailyWrong">0</strong></div>
+            </div>
+            <div class="scoreboard-note" id="dailySummary">今天还没有成绩。</div>
+            <button id="reviewMistakes" class="review-mistakes-button" type="button" disabled>
+              <span aria-hidden="true">↻</span>
+              <span>练习今日错题</span>
+              <strong id="mistakeCount">0</strong>
+            </button>
+            <section class="category-report" aria-labelledby="categoryReportTitle">
+              <h3 id="categoryReportTitle">分类成绩</h3>
+              <div id="categoryReportList" class="category-report-list"></div>
+            </section>
+            <section class="session-history" aria-labelledby="sessionHistoryTitle">
+              <h3 id="sessionHistoryTitle">训练记录</h3>
+              <div id="sessionHistoryList" class="session-history-list"></div>
+            </section>
+          </aside>
+        </div>
       </section>
     </main>
 
     <script src="data/hanzi-db.js"></script>
     <script src="data/word-db.js"></script>
-    <script src="app.js?v=11"></script>
+    <script src="data/hanzi-curriculum.js?v=2"></script>
+    <script src="data/pinyin-syllabus.js"></script>
+    <script src="data/pinyin-audio-manifest.js"></script>
+    <script src="data/progression-data.js"></script>
+    <script src="utils/progress.js"></script>
+    <script src="app.js?v=23"></script>
   </body>
 </html>
