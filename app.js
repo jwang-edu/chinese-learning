@@ -238,6 +238,7 @@ const reviewMistakesButton = document.querySelector("#reviewMistakes");
 const mistakeCount = document.querySelector("#mistakeCount");
 const homePage = document.querySelector("#homePage");
 const growthPage = document.querySelector("#growthPage");
+const cardsPage = document.querySelector("#cardsPage");
 const profileName = document.querySelector("#profileName");
 const profileLevel = document.querySelector("#profileLevel");
 const profileStars = document.querySelector("#profileStars");
@@ -249,6 +250,21 @@ const achievementPreviewList = document.querySelector("#achievementPreviewList")
 const levelDetail = document.querySelector("#levelDetail");
 const growthMapAreas = document.querySelector("#growthMapAreas");
 const allAchievementsList = document.querySelector("#allAchievementsList");
+const cardAlbumStars = document.querySelector("#cardAlbumStars");
+const cardDrawCount = document.querySelector("#cardDrawCount");
+const cardOwnedCount = document.querySelector("#cardOwnedCount");
+const cardAlbumProgress = document.querySelector("#cardAlbumProgress");
+const idiomCardGrid = document.querySelector("#idiomCardGrid");
+const drawIdiomCardButton = document.querySelector("#drawIdiomCard");
+const cardDrawMessage = document.querySelector("#cardDrawMessage");
+const cardReveal = document.querySelector("#cardReveal");
+const cardRevealStatus = document.querySelector("#cardRevealStatus");
+const cardRevealContent = document.querySelector("#cardRevealContent");
+const accountButton = document.querySelector("#accountButton");
+const accountModal = document.querySelector("#accountModal");
+const accountList = document.querySelector("#accountList");
+const accountCreateForm = document.querySelector("#accountCreateForm");
+const accountNameInput = document.querySelector("#accountNameInput");
 
 document.querySelector("#startPractice").addEventListener("click", startPractice);
 document.querySelector("#startPinyinPractice").addEventListener("click", startPinyinPractice);
@@ -258,7 +274,12 @@ document.querySelector("#selectCurriculumVolume").addEventListener("click", sele
 document.querySelector("#clearCurriculumSelection").addEventListener("click", clearCurriculumSelection);
 addCurriculumCharactersButton.addEventListener("click", addCurriculumCharactersToPractice);
 reviewMistakesButton.addEventListener("click", startMistakeReview);
+drawIdiomCardButton.addEventListener("click", drawIdiomCard);
+document.querySelectorAll("[data-card-close]").forEach((button) => button.addEventListener("click", closeCardReveal));
 document.querySelector("#heroStartLearning").addEventListener("click", () => switchAppPage("hanzi"));
+accountButton.addEventListener("click", openAccountModal);
+accountCreateForm.addEventListener("submit", createAccountFromForm);
+document.querySelectorAll("[data-account-close]").forEach((button) => button.addEventListener("click", closeAccountModal));
 
 document.querySelectorAll("[data-app-page]").forEach((button) => {
   button.addEventListener("click", () => switchAppPage(button.dataset.appPage));
@@ -275,17 +296,24 @@ document.querySelectorAll("[data-preset]").forEach((button) => {
 });
 
 input.value = "明好林休妈语";
+state.userProfile = window.MOYA_PROGRESS.loadProfile();
 state.savedLists = loadSavedLists();
 state.sessionHistory = loadSessionHistory();
-state.userProfile = window.MOYA_PROGRESS.loadProfile();
 renderPinyinSyllabus();
 renderCurriculumPicker();
 renderProgressionUI();
 switchAppPage("home");
+renderAccountList();
 
 window.addEventListener("moya:progress", (event) => {
   state.userProfile = event.detail.profile;
   renderProgressionUI();
+  renderAccountList();
+  if (!cardsPage.classList.contains("hidden")) renderCardAlbum();
+});
+
+window.addEventListener("moya:account-change", (event) => {
+  loadActiveAccountState(event.detail.profile);
 });
 
 function startPractice() {
@@ -418,6 +446,7 @@ function showSettings() {
   state.emptyMessage = null;
   homePage.classList.add("hidden");
   growthPage.classList.add("hidden");
+  cardsPage.classList.add("hidden");
   settingsOnlyNodes.forEach((node) => node.classList.remove("hidden"));
   settingsPage.classList.toggle("hidden", state.trainingDomain !== "hanzi");
   pinyinSettingsPage.classList.toggle("hidden", state.trainingDomain !== "pinyin");
@@ -437,10 +466,11 @@ function switchAppPage(page) {
   stopSpeech();
   stopAudioOptionSequence();
   clearAutoNext();
-  state.screen = page === "home" || page === "growth" ? page : "settings";
+  state.screen = ["home", "growth", "cards"].includes(page) ? page : "settings";
   if (page === "hanzi" || page === "pinyin") state.trainingDomain = page;
   homePage.classList.toggle("hidden", page !== "home");
   growthPage.classList.toggle("hidden", page !== "growth");
+  cardsPage.classList.toggle("hidden", page !== "cards");
   settingsPage.classList.toggle("hidden", page !== "hanzi");
   pinyinSettingsPage.classList.toggle("hidden", page !== "pinyin");
   practicePage.classList.add("hidden");
@@ -450,10 +480,80 @@ function switchAppPage(page) {
   renderDailyStats();
   renderProgressionUI();
   if (page === "hanzi") renderSavedLists();
+  if (page === "cards") renderCardAlbum();
 }
 
 function switchTrainingDomain(domain) {
   switchAppPage(domain === "pinyin" ? "pinyin" : "hanzi");
+}
+
+function accountScopedKey(name) {
+  return window.MOYA_PROGRESS.accountStorageKey(name);
+}
+
+function canReadLegacyAccountData() {
+  return window.MOYA_PROGRESS.getActiveAccountId() === "local-primary";
+}
+
+function loadActiveAccountState(profile = window.MOYA_PROGRESS.loadProfile()) {
+  stopTimer();
+  stopSpeech();
+  stopAudioOptionSequence();
+  clearAutoNext();
+  state.userProfile = profile;
+  state.savedLists = loadSavedLists();
+  state.sessionHistory = loadSessionHistory();
+  state.dailyStats = loadDailyStats();
+  state.currentSession = null;
+  state.score = 0;
+  state.scoredQuestions = new Set();
+  state.timedOutQuestions = new Set();
+  input.value = "";
+  renderSavedLists();
+  renderDailyStats();
+  renderProgressionUI();
+  renderAccountList();
+  if (!cardsPage.classList.contains("hidden")) renderCardAlbum();
+}
+
+function openAccountModal() {
+  renderAccountList();
+  accountModal.classList.remove("hidden");
+  accountNameInput.focus();
+}
+
+function closeAccountModal() {
+  accountModal.classList.add("hidden");
+  accountNameInput.value = "";
+}
+
+function createAccountFromForm(event) {
+  event.preventDefault();
+  const profile = window.MOYA_PROGRESS.createAccount(accountNameInput.value);
+  loadActiveAccountState(profile);
+  accountNameInput.value = "";
+  closeAccountModal();
+}
+
+function renderAccountList() {
+  const accounts = window.MOYA_PROGRESS.loadAccounts();
+  const activeId = window.MOYA_PROGRESS.getActiveAccountId();
+  accountList.innerHTML = accounts.map((account) => {
+    const active = account.id === activeId;
+    return `<button type="button" data-account-id="${escapeAttribute(account.id)}" class="${active ? "active" : ""}" ${active ? "aria-current=\"true\"" : ""}>
+      <span class="account-avatar" aria-hidden="true"></span>
+      <span><strong>${escapeHTML(account.name)}</strong><small>${active ? "正在学习" : "点击切换"}</small></span>
+      <b>${active ? "✓" : "切换"}</b>
+    </button>`;
+  }).join("");
+  accountList.querySelectorAll("[data-account-id]").forEach((button) => {
+    button.addEventListener("click", () => {
+      if (button.dataset.accountId === activeId) return;
+      const profile = window.MOYA_PROGRESS.setActiveAccount(button.dataset.accountId);
+      loadActiveAccountState(profile);
+      closeAccountModal();
+    });
+  });
 }
 
 function updateNavigation(page) {
@@ -547,6 +647,122 @@ function renderGrowthMap(profile, progress) {
       <b>${unlocked ? "已点亮" : area.future ? "即将开放" : `${area.unlockStars} 星解锁`}</b>
     </article>`;
   }).join("");
+}
+
+function renderCardAlbum() {
+  const cards = window.MOYA_IDIOM_CARDS || [];
+  const rules = window.MOYA_CARD_RULES;
+  const collection = state.userProfile.cardCollection || {};
+  const drawCount = getTodayCardDrawCount();
+  const ownedCards = cards.filter((card) => getOwnedCardCount(collection[card.id]) > 0);
+
+  cardAlbumStars.textContent = `${state.userProfile.totalStars} ★`;
+  cardDrawCount.textContent = `${drawCount} / ${rules.dailyLimit}`;
+  cardOwnedCount.textContent = `${ownedCards.length} / ${cards.length}`;
+  cardAlbumProgress.textContent = `${ownedCards.length} / ${cards.length}`;
+
+  const atLimit = drawCount >= rules.dailyLimit;
+  const lacksStars = state.userProfile.totalStars < rules.drawCost;
+  drawIdiomCardButton.disabled = atLimit || lacksStars;
+  drawIdiomCardButton.textContent = atLimit
+    ? "今天已经抽满 5 次"
+    : lacksStars
+      ? `还需要 ${rules.drawCost - state.userProfile.totalStars} 颗星`
+      : `抽一张熊猫卡 · ${rules.drawCost} ★`;
+
+  idiomCardGrid.innerHTML = cards.map((card) => {
+    const count = getOwnedCardCount(collection[card.id]);
+    const owned = count > 0;
+    return `<article class="idiom-card ${owned ? "owned" : "locked"}">
+      <div class="idiom-card-number">${card.order}</div>
+      ${owned && count > 1 ? `<span class="idiom-card-count">×${count}</span>` : ""}
+      <div class="idiom-card-art" ${getCardArtStyle(card)} aria-hidden="true"></div>
+      <div class="idiom-card-copy">
+        <h4>${owned ? escapeHTML(card.idiom) : "待收集"}</h4>
+        <p class="idiom-pinyin">${owned ? escapeHTML(card.pinyin) : "抽卡后揭晓"}</p>
+        ${owned ? `<p><b>释义</b>${escapeHTML(card.meaning)}</p><p><b>例句</b>${escapeHTML(card.example)}</p>` : '<p class="locked-card-note">使用星星抽取这张成语卡。</p>'}
+      </div>
+      ${owned ? `<button type="button" data-card-view="${escapeAttribute(card.id)}">查看卡片</button>` : ""}
+    </article>`;
+  }).join("");
+
+  idiomCardGrid.querySelectorAll("[data-card-view]").forEach((button) => {
+    button.addEventListener("click", () => {
+      const card = cards.find((item) => item.id === button.dataset.cardView);
+      const count = getOwnedCardCount(collection[button.dataset.cardView]);
+      if (card) showCardReveal(card, `已收藏 ${count} 张`);
+    });
+  });
+}
+
+function drawIdiomCard() {
+  const cards = window.MOYA_IDIOM_CARDS || [];
+  const rules = window.MOYA_CARD_RULES;
+  const drawCount = getTodayCardDrawCount();
+  if (drawCount >= rules.dailyLimit) {
+    cardDrawMessage.textContent = "今天已经抽过 5 次，明天再来吧。";
+    return;
+  }
+  if (state.userProfile.totalStars < rules.drawCost) {
+    cardDrawMessage.textContent = `还需要 ${rules.drawCost - state.userProfile.totalStars} 颗星星。`;
+    return;
+  }
+
+  const card = cards[Math.floor(Math.random() * cards.length)];
+  const previousCount = getOwnedCardCount(state.userProfile.cardCollection[card.id]);
+  const spent = window.MOYA_PROGRESS.spendStars(state.userProfile, rules.drawCost, "抽取水果成语卡");
+  if (!spent.success) return;
+
+  const now = new Date().toISOString();
+  state.userProfile.cardCollection[card.id] = {
+    count: previousCount + 1,
+    firstDrawnAt: state.userProfile.cardCollection[card.id]?.firstDrawnAt || now,
+    lastDrawnAt: now,
+  };
+  const today = window.MOYA_PROGRESS.dateKey();
+  state.userProfile.dailyCardDraws[today] = drawCount + 1;
+  state.userProfile.cardDrawHistory.unshift({ cardId: card.id, drawnAt: now, duplicate: previousCount > 0 });
+  state.userProfile.cardDrawHistory = state.userProfile.cardDrawHistory.slice(0, 200);
+  window.MOYA_PROGRESS.saveProfile(state.userProfile);
+
+  cardDrawMessage.textContent = previousCount > 0
+    ? `抽到了重复卡：${card.idiom}，现在共有 ${previousCount + 1} 张。`
+    : `新卡加入卡册：${card.idiom}！`;
+  renderCardAlbum();
+  showCardReveal(card, previousCount > 0 ? `重复卡 · 第 ${previousCount + 1} 张` : "抽到了新卡！");
+}
+
+function getTodayCardDrawCount() {
+  const today = window.MOYA_PROGRESS.dateKey();
+  return Math.max(0, Number(state.userProfile.dailyCardDraws?.[today]) || 0);
+}
+
+function getOwnedCardCount(record) {
+  if (typeof record === "number") return Math.max(0, record);
+  return Math.max(0, Number(record?.count) || 0);
+}
+
+function getCardArtStyle(card) {
+  const positions = ["0%", "33.333%", "66.667%", "100%"];
+  return `style="--card-sheet:url('assets/cards/card-sheet-${card.sheet}.jpg');--card-x:${positions[card.panel] || "0%"}"`;
+}
+
+function showCardReveal(card, status) {
+  cardRevealStatus.textContent = status;
+  cardRevealContent.innerHTML = `
+    <div class="revealed-card-art" ${getCardArtStyle(card)} aria-hidden="true"></div>
+    <span class="revealed-card-number">第 ${card.order} 张</span>
+    <h3 id="revealedCardTitle">${escapeHTML(card.idiom)}</h3>
+    <p class="idiom-pinyin">${escapeHTML(card.pinyin)}</p>
+    <p><b>释义</b>${escapeHTML(card.meaning)}</p>
+    <p><b>例句</b>${escapeHTML(card.example)}</p>
+  `;
+  cardReveal.classList.remove("hidden");
+  cardReveal.querySelector("[data-card-close]")?.focus();
+}
+
+function closeCardReveal() {
+  cardReveal.classList.add("hidden");
 }
 
 function showGlobalStarToast(amount, reason) {
@@ -698,7 +914,10 @@ function syncInputWithCheckedLists() {
 
 function loadSavedLists() {
   try {
-    const saved = JSON.parse(localStorage.getItem("hanzi-practice:saved-lists"));
+    const saved = JSON.parse(
+      localStorage.getItem(accountScopedKey("hanzi-practice:saved-lists")) ||
+        (canReadLegacyAccountData() ? localStorage.getItem("hanzi-practice:saved-lists") : null)
+    );
     return Array.isArray(saved)
       ? saved.filter((list) => list?.id && list?.name && Array.isArray(list.chars))
       : [];
@@ -708,7 +927,7 @@ function loadSavedLists() {
 }
 
 function persistSavedLists() {
-  localStorage.setItem("hanzi-practice:saved-lists", JSON.stringify(state.savedLists));
+  localStorage.setItem(accountScopedKey("hanzi-practice:saved-lists"), JSON.stringify(state.savedLists));
 }
 
 function saveCurrentList() {
@@ -1609,13 +1828,17 @@ function todayKey() {
 }
 
 function dailyStorageKey() {
-  return `hanzi-practice-daily:${todayKey()}`;
+  return accountScopedKey(`hanzi-practice-daily:${todayKey()}`);
 }
 
 function loadDailyStats() {
   const fallback = { date: todayKey(), stars: 0, done: 0, correct: 0, wrong: 0, byType: {}, wrongItems: [] };
   try {
-    return { ...fallback, ...JSON.parse(localStorage.getItem(dailyStorageKey())) };
+    const legacyKey = `hanzi-practice-daily:${todayKey()}`;
+    return {
+      ...fallback,
+      ...JSON.parse(localStorage.getItem(dailyStorageKey()) || (canReadLegacyAccountData() ? localStorage.getItem(legacyKey) : null)),
+    };
   } catch {
     return fallback;
   }
@@ -1777,12 +2000,15 @@ function upsertCurrentSession() {
   if (existingIndex >= 0) state.sessionHistory.splice(existingIndex, 1);
   state.sessionHistory.unshift(snapshot);
   state.sessionHistory = state.sessionHistory.slice(0, 30);
-  localStorage.setItem("hanzi-practice:sessions", JSON.stringify(state.sessionHistory));
+  localStorage.setItem(accountScopedKey("hanzi-practice:sessions"), JSON.stringify(state.sessionHistory));
 }
 
 function loadSessionHistory() {
   try {
-    const stored = JSON.parse(localStorage.getItem("hanzi-practice:sessions"));
+    const stored = JSON.parse(
+      localStorage.getItem(accountScopedKey("hanzi-practice:sessions")) ||
+        (canReadLegacyAccountData() ? localStorage.getItem("hanzi-practice:sessions") : null)
+    );
     return Array.isArray(stored) ? stored.slice(0, 30) : [];
   } catch {
     return [];

@@ -1,18 +1,27 @@
 (function () {
-  const PROFILE_KEY = "moya:user-profile";
+  const LEGACY_PROFILE_KEY = "moya:user-profile";
+  const ACCOUNTS_KEY = "moya:accounts";
+  const ACTIVE_ACCOUNT_KEY = "moya:active-account-id";
   const PROFILE_VERSION = 1;
 
   function dateKey(date = new Date()) {
     return date.toLocaleDateString("en-CA");
   }
 
-  function createDefaultProfile() {
+  function createId(prefix = "local") {
+    return `${prefix}-${Date.now()}-${Math.random().toString(16).slice(2, 8)}`;
+  }
+
+  function createDefaultProfile(options = {}) {
+    const id = options.id || createId();
+    const name = options.name || "小墨芽";
+    const now = new Date().toISOString();
     return {
       version: PROFILE_VERSION,
-      id: `local-${Date.now()}`,
-      name: "小墨芽",
+      id,
+      name,
       avatar: "panda",
-      totalStars: seedStars(),
+      totalStars: Math.max(0, Number(options.totalStars ?? seedStars()) || 0),
       currentLevel: "sprout",
       learnedCharacters: [],
       completedPinyinLessons: [],
@@ -30,9 +39,110 @@
       cardCollection: {},
       cardDrawHistory: [],
       dailyCardDraws: {},
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
+      createdAt: now,
+      updatedAt: now,
     };
+  }
+
+  function profileKey(accountId = getActiveAccountId()) {
+    return `${LEGACY_PROFILE_KEY}:${accountId}`;
+  }
+
+  function accountStorageKey(name, accountId = getActiveAccountId()) {
+    return `moya:account:${accountId}:${name}`;
+  }
+
+  function readJSON(key, fallback) {
+    try {
+      const value = JSON.parse(localStorage.getItem(key));
+      return value ?? fallback;
+    } catch {
+      return fallback;
+    }
+  }
+
+  function writeAccounts(accounts) {
+    localStorage.setItem(ACCOUNTS_KEY, JSON.stringify(accounts));
+  }
+
+  function normalizeAccount(account) {
+    return {
+      id: account?.id || createId(),
+      name: String(account?.name || "小墨芽").trim().slice(0, 16) || "小墨芽",
+      avatar: account?.avatar || "panda",
+      createdAt: account?.createdAt || new Date().toISOString(),
+      updatedAt: account?.updatedAt || new Date().toISOString(),
+    };
+  }
+
+  function loadAccounts() {
+    const stored = readJSON(ACCOUNTS_KEY, null);
+    if (Array.isArray(stored) && stored.length) {
+      return stored.map(normalizeAccount);
+    }
+
+    const migratedId = "local-primary";
+    const legacyProfile = readJSON(LEGACY_PROFILE_KEY, null);
+    const profile = legacyProfile && typeof legacyProfile === "object"
+      ? { ...createDefaultProfile({ id: migratedId, name: legacyProfile.name || "小墨芽", totalStars: 0 }), ...legacyProfile, id: migratedId }
+      : createDefaultProfile({ id: migratedId });
+    const account = normalizeAccount({
+      id: migratedId,
+      name: profile.name,
+      avatar: profile.avatar,
+      createdAt: profile.createdAt,
+      updatedAt: profile.updatedAt,
+    });
+    localStorage.setItem(profileKey(migratedId), JSON.stringify(refreshProfile(profile)));
+    writeAccounts([account]);
+    localStorage.setItem(ACTIVE_ACCOUNT_KEY, migratedId);
+    return [account];
+  }
+
+  function getActiveAccountId() {
+    const accounts = readJSON(ACCOUNTS_KEY, []);
+    const active = localStorage.getItem(ACTIVE_ACCOUNT_KEY);
+    if (active && accounts.some((account) => account.id === active)) return active;
+    const fallback = accounts[0]?.id || "local-primary";
+    localStorage.setItem(ACTIVE_ACCOUNT_KEY, fallback);
+    return fallback;
+  }
+
+  function setActiveAccount(accountId) {
+    const accounts = loadAccounts();
+    if (!accounts.some((account) => account.id === accountId)) return loadProfile();
+    localStorage.setItem(ACTIVE_ACCOUNT_KEY, accountId);
+    const profile = loadProfile();
+    window.dispatchEvent(new CustomEvent("moya:account-change", { detail: { accounts, accountId, profile } }));
+    return profile;
+  }
+
+  function updateAccountFromProfile(profile) {
+    const accounts = loadAccounts();
+    const index = accounts.findIndex((account) => account.id === profile.id);
+    const next = normalizeAccount({
+      id: profile.id,
+      name: profile.name,
+      avatar: profile.avatar,
+      createdAt: profile.createdAt,
+      updatedAt: profile.updatedAt,
+    });
+    if (index >= 0) accounts[index] = { ...accounts[index], ...next };
+    else accounts.push(next);
+    writeAccounts(accounts);
+    return accounts;
+  }
+
+  function createAccount(name) {
+    const accountName = String(name || "").trim().slice(0, 16) || `小墨芽 ${loadAccounts().length + 1}`;
+    const profile = createDefaultProfile({ id: createId("kid"), name: accountName, totalStars: 0 });
+    localStorage.setItem(profileKey(profile.id), JSON.stringify(refreshProfile(profile)));
+    const accounts = [...loadAccounts(), normalizeAccount(profile)];
+    writeAccounts(accounts);
+    localStorage.setItem(ACTIVE_ACCOUNT_KEY, profile.id);
+    window.dispatchEvent(new CustomEvent("moya:account-change", { detail: { accounts, accountId: profile.id, profile } }));
+    window.dispatchEvent(new CustomEvent("moya:progress", { detail: { profile } }));
+    return profile;
   }
 
   function seedStars() {
@@ -45,9 +155,12 @@
   }
 
   function loadProfile() {
-    const fallback = createDefaultProfile();
+    loadAccounts();
+    const accountId = getActiveAccountId();
+    const account = loadAccounts().find((item) => item.id === accountId);
+    const fallback = createDefaultProfile({ id: accountId, name: account?.name || "小墨芽", totalStars: 0 });
     try {
-      const stored = JSON.parse(localStorage.getItem(PROFILE_KEY));
+      const stored = JSON.parse(localStorage.getItem(profileKey(accountId)));
       if (!stored || typeof stored !== "object") return fallback;
       const profile = { ...fallback, ...stored };
       profile.learnedCharacters = Array.isArray(profile.learnedCharacters) ? profile.learnedCharacters : [];
@@ -68,7 +181,8 @@
   function saveProfile(profile) {
     profile.updatedAt = new Date().toISOString();
     refreshProfile(profile);
-    localStorage.setItem(PROFILE_KEY, JSON.stringify(profile));
+    localStorage.setItem(profileKey(profile.id), JSON.stringify(profile));
+    updateAccountFromProfile(profile);
     window.dispatchEvent(new CustomEvent("moya:progress", { detail: { profile } }));
     return profile;
   }
@@ -215,6 +329,11 @@
 
   window.MOYA_PROGRESS = {
     dateKey,
+    loadAccounts,
+    getActiveAccountId,
+    setActiveAccount,
+    createAccount,
+    accountStorageKey,
     loadProfile,
     saveProfile,
     getLevel,

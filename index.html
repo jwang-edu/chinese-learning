@@ -22,6 +22,10 @@
             <span><strong id="profileName">小墨芽</strong><small id="profileLevel">Little Sprout</small></span>
             <b id="profileStars">0 ★</b>
           </button>
+          <button id="accountButton" class="account-button" type="button">
+            <span aria-hidden="true">童</span>
+            <strong>账户</strong>
+          </button>
           <div class="student-stats practice-only" aria-live="polite">
             <div class="progress-pill">
               <span id="progressText">0 / 0</span>
@@ -41,6 +45,7 @@
           <button class="active" type="button" data-app-page="home"><span aria-hidden="true">舍</span>首页</button>
           <button type="button" data-app-page="hanzi"><span aria-hidden="true">字</span>汉字乐园</button>
           <button type="button" data-app-page="pinyin"><span aria-hidden="true">音</span>拼音乐园</button>
+          <button type="button" data-app-page="cards"><span aria-hidden="true">卡</span>集星卡册</button>
           <button type="button" data-app-page="growth"><span aria-hidden="true">芽</span>我的成长</button>
         </nav>
 
@@ -51,7 +56,7 @@
           <section class="moya-hero">
             <div class="hero-copy">
               <p class="hero-kicker">墨香轻落，新芽初生</p>
-              <h2>在汉字里，<br />遇见更美的世界</h2>
+              <h2><span>在汉字里，</span><span>遇见更美的世界</span></h2>
               <p>在墨芽，每一个字都像一颗种子，陪你慢慢发芽，长成大树。</p>
               <button id="heroStartLearning" class="hero-start-button" type="button">开始学习 <span aria-hidden="true">→</span></button>
             </div>
@@ -107,6 +112,47 @@
             <div id="allAchievementsList" class="all-achievements-list"></div>
           </section>
         </section>
+
+        <section id="cardsPage" class="cards-page hidden" aria-label="集星卡册">
+          <header class="cards-heading">
+            <p class="eyebrow">集星星 · 抽熊猫卡 · 学成语</p>
+            <h2>水果成语卡</h2>
+            <p>第一阶段共 12 张。抽到重复卡也会保留，看看今天会遇见哪一张。</p>
+          </header>
+
+          <section class="card-draw-panel" aria-labelledby="cardDrawTitle">
+            <div class="card-draw-mascot" aria-hidden="true"></div>
+            <div class="card-draw-copy">
+              <p>每日抽卡</p>
+              <h3 id="cardDrawTitle">50 颗星星换 1 次机会</h3>
+              <div class="card-draw-stats">
+                <span>拥有 <strong id="cardAlbumStars">0 ★</strong></span>
+                <span>今日 <strong id="cardDrawCount">0 / 5</strong></span>
+                <span>已集 <strong id="cardOwnedCount">0 / 12</strong></span>
+              </div>
+              <button id="drawIdiomCard" class="draw-card-button" type="button">抽一张熊猫卡</button>
+              <p id="cardDrawMessage" class="card-draw-message" aria-live="polite"></p>
+            </div>
+          </section>
+
+          <section class="card-album" aria-labelledby="cardAlbumTitle">
+            <header>
+              <div><p>第一阶段 · 水果篇</p><h3 id="cardAlbumTitle">我的卡片</h3></div>
+              <span id="cardAlbumProgress">0 / 12</span>
+            </header>
+            <div id="idiomCardGrid" class="idiom-card-grid"></div>
+          </section>
+        </section>
+
+        <div id="cardReveal" class="card-reveal hidden" role="dialog" aria-modal="true" aria-labelledby="revealedCardTitle">
+          <div class="card-reveal-backdrop" data-card-close></div>
+          <article class="card-reveal-panel">
+            <button class="card-reveal-close" type="button" data-card-close aria-label="关闭">×</button>
+            <p id="cardRevealStatus" class="card-reveal-status">抽到了新卡！</p>
+            <div id="cardRevealContent"></div>
+            <button class="primary-action" type="button" data-card-close>收进卡册</button>
+          </article>
+        </div>
 
         <section id="settingsPage" class="settings-page hidden" aria-label="练习设置">
           <div class="settings-hero" aria-hidden="true">
@@ -312,13 +358,35 @@
       </section>
     </main>
 
+    <div id="accountModal" class="account-modal hidden" role="dialog" aria-modal="true" aria-labelledby="accountModalTitle">
+      <div class="account-modal-backdrop" data-account-close></div>
+      <section class="account-modal-panel">
+        <header>
+          <div>
+            <p class="eyebrow">给每个孩子一片小天地</p>
+            <h2 id="accountModalTitle">选择学习账户</h2>
+          </div>
+          <button type="button" data-account-close aria-label="关闭账户面板">×</button>
+        </header>
+        <div id="accountList" class="account-list"></div>
+        <form id="accountCreateForm" class="account-create-form">
+          <label>
+            <span>新账户名字</span>
+            <input id="accountNameInput" type="text" maxlength="16" placeholder="例如：安安" />
+          </label>
+          <button type="submit">创建账户</button>
+        </form>
+      </section>
+    </div>
+
     <script src="data/hanzi-db.js"></script>
     <script src="data/word-db.js"></script>
     <script src="data/hanzi-curriculum.js?v=2"></script>
     <script src="data/pinyin-syllabus.js"></script>
     <script src="data/pinyin-audio-manifest.js"></script>
     <script src="data/progression-data.js"></script>
+    <script src="data/idiom-cards.js"></script>
     <script src="utils/progress.js"></script>
-    <script src="app.js?v=23"></script>
+    <script src="app.js?v=24"></script>
   </body>
 </html>

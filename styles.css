@@ -79,6 +79,174 @@
   white-space: nowrap;
 }
 
+.account-button {
+  display: inline-grid;
+  grid-template-columns: 34px auto;
+  gap: 8px;
+  align-items: center;
+  min-height: 48px;
+  padding: 6px 14px 6px 8px;
+  border: 1px solid var(--soft-line);
+  border-radius: 8px;
+  background: rgba(251, 246, 234, 0.92);
+  color: var(--ink);
+  box-shadow: 0 8px 18px rgba(89, 52, 22, 0.08);
+}
+
+.account-button span,
+.account-avatar {
+  display: grid;
+  width: 34px;
+  height: 34px;
+  place-items: center;
+  border-radius: 50%;
+  background: #edf3e4;
+  color: var(--green-dark);
+  font-family: "Kaiti SC", "STKaiti", serif;
+  font-weight: 900;
+}
+
+.account-button strong {
+  font-size: 14px;
+}
+
+.account-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 20;
+  display: grid;
+  place-items: center;
+  padding: 20px;
+}
+
+.account-modal-backdrop {
+  position: absolute;
+  inset: 0;
+  background: rgba(53, 34, 24, 0.2);
+  backdrop-filter: blur(3px);
+}
+
+.account-modal-panel {
+  position: relative;
+  z-index: 1;
+  width: min(520px, 100%);
+  padding: 22px;
+  border: 1px solid var(--soft-line);
+  border-radius: 8px;
+  background:
+    linear-gradient(135deg, rgba(251, 246, 234, 0.96), rgba(248, 241, 228, 0.94)),
+    var(--panel);
+  box-shadow: var(--shadow);
+}
+
+.account-modal-panel header {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  align-items: start;
+  margin-bottom: 16px;
+}
+
+.account-modal-panel h2 {
+  margin: 4px 0 0;
+  font-family: "Kaiti SC", "STKaiti", serif;
+  font-size: clamp(28px, 5vw, 38px);
+  letter-spacing: 0;
+}
+
+.account-modal-panel header button {
+  width: 38px;
+  height: 38px;
+  border: 1px solid var(--soft-line);
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.55);
+  color: var(--muted);
+  font-size: 24px;
+  line-height: 1;
+}
+
+.account-list {
+  display: grid;
+  gap: 10px;
+  margin-bottom: 18px;
+}
+
+.account-list button {
+  display: grid;
+  grid-template-columns: 42px minmax(0, 1fr) auto;
+  gap: 10px;
+  align-items: center;
+  width: 100%;
+  padding: 10px;
+  border: 1px solid var(--soft-line);
+  border-radius: 8px;
+  background: rgba(255, 252, 244, 0.72);
+  color: var(--ink);
+  text-align: left;
+}
+
+.account-list button.active {
+  border-color: rgba(47, 139, 114, 0.55);
+  background: rgba(237, 243, 228, 0.78);
+}
+
+.account-avatar {
+  width: 42px;
+  height: 42px;
+  background: url("assets/moya/star-mascot.jpg") center 42% / 145% auto no-repeat;
+}
+
+.account-list strong,
+.account-list small {
+  display: block;
+}
+
+.account-list small {
+  margin-top: 2px;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.account-list b {
+  color: var(--green-dark);
+}
+
+.account-create-form {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 10px;
+  padding-top: 16px;
+  border-top: 1px dashed rgba(216, 185, 138, 0.65);
+}
+
+.account-create-form label span {
+  display: block;
+  margin-bottom: 6px;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.account-create-form input {
+  width: 100%;
+  min-height: 44px;
+  padding: 9px 12px;
+  border: 1px solid var(--soft-line);
+  border-radius: 8px;
+  background: rgba(255, 252, 244, 0.82);
+  color: var(--ink);
+}
+
+.account-create-form button {
+  align-self: end;
+  min-height: 44px;
+  padding: 0 18px;
+  border-radius: 8px;
+  background: var(--green-dark);
+  color: #fffaf0;
+  font-weight: 900;
+}
+
 * {
   box-sizing: border-box;
 }
@@ -2714,6 +2882,9 @@ input:focus {
 
 @media (max-width: 560px) {
   .profile-chip { min-width: 0; width: 100%; }
+  .account-button { flex: 1; justify-content: center; }
+  .account-create-form { grid-template-columns: 1fr; }
+  .account-create-form button { width: 100%; }
   .training-domain-tabs { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .training-domain-tabs button { min-height: 52px; font-size: 14px; }
   .moya-hero { min-height: 500px; }
@@ -2857,14 +3028,21 @@ h1 {
 }
 
 .hero-copy {
-  width: 53%;
-  max-width: 600px;
+  width: min(58%, 660px);
+  min-width: 520px;
   padding: 48px 34px;
 }
 
 .hero-copy h2 {
-  font-size: 46px;
-  line-height: 1.28;
+  max-width: 560px;
+  font-size: clamp(42px, 4.1vw, 60px);
+  line-height: 1.18;
+}
+
+.hero-copy h2 span {
+  display: block;
+  width: max-content;
+  max-width: 100%;
 }
 
 .hero-copy > p:not(.hero-kicker) {
@@ -3146,6 +3324,16 @@ select:focus-visible {
 }
 
 @media (max-width: 860px) {
+  .hero-copy {
+    width: min(92%, 620px);
+    min-width: 0;
+  }
+
+  .hero-copy h2 {
+    max-width: 520px;
+    font-size: clamp(36px, 8.5vw, 52px);
+  }
+
   .hero-watercolor {
     inset: 0;
     background-image:
@@ -3215,7 +3403,7 @@ select:focus-visible {
   }
 
   .hero-copy h2 {
-    font-size: 40px;
+    font-size: clamp(34px, 9.8vw, 40px);
   }
 
   .hero-watercolor {
@@ -3259,9 +3447,15 @@ select:focus-visible {
   min-height: 620px;
   padding: 26px;
   border-color: var(--line);
+  isolation: isolate;
   background:
-    linear-gradient(rgba(251, 246, 234, 0.96), rgba(251, 246, 234, 0.96)),
-    url("assets/moya/star-mascot.jpg") right -96px bottom -92px / 310px auto no-repeat;
+    linear-gradient(90deg, rgba(251, 246, 234, 0.98), rgba(251, 246, 234, 0.9) 46%, rgba(251, 246, 234, 0.74)),
+    url("assets/moya/pinyin-garden.jpg"),
+    url("assets/moya/hero-lychee-pandas.jpg"),
+    #f8f1e4;
+  background-position: center, right bottom, center, center;
+  background-repeat: no-repeat;
+  background-size: cover, min(560px, 48vw) auto, cover, auto;
 }
 
 .quiz-card {
@@ -3344,15 +3538,27 @@ select:focus-visible {
 .question-stage::after {
   content: "";
   position: absolute;
-  width: 88px;
-  height: 88px;
-  opacity: 0.13;
-  background: url("assets/moya/hanzi-garden.jpg") center / 280px auto no-repeat;
+  width: clamp(120px, 18vw, 220px);
+  height: clamp(92px, 14vw, 160px);
+  opacity: 0.1;
+  background-repeat: no-repeat;
+  background-size: contain;
   pointer-events: none;
 }
 
-.question-stage::before { left: -20px; bottom: -22px; }
-.question-stage::after { right: -18px; top: -22px; transform: scaleX(-1); }
+.question-stage::before {
+  left: -42px;
+  bottom: -40px;
+  background-image: url("assets/moya/hanzi-garden.jpg");
+  background-position: left bottom;
+}
+
+.question-stage::after {
+  right: -44px;
+  top: -44px;
+  background-image: url("assets/moya/hero-lychee-pandas.jpg");
+  background-position: right top;
+}
 
 .question-kicker {
   position: relative;
@@ -3463,7 +3669,18 @@ select:focus-visible {
 }
 
 .pinyin-question-stage::before,
-.pinyin-question-stage::after { background-image: url("assets/moya/pinyin-garden.jpg"); }
+.pinyin-question-stage::after {
+  background-image: url("assets/moya/pinyin-garden.jpg");
+  background-size: contain;
+}
+
+.pinyin-question-stage::before {
+  background-position: left bottom;
+}
+
+.pinyin-question-stage::after {
+  background-position: right top;
+}
 
 .sound-prompt-button {
   display: inline-flex;
@@ -3567,4 +3784,348 @@ select:focus-visible {
   .part-bank { grid-template-columns: repeat(3, minmax(58px, 1fr)); }
   .assemble-panel { min-height: 0; padding: 14px 0; }
   .completion-celebration > div { min-width: 0; width: 100%; }
+}
+
+/* Collectible idiom cards */
+.cards-page {
+  display: grid;
+  gap: 18px;
+}
+
+.cards-heading h2 {
+  margin: 0;
+  color: var(--ink);
+  font-family: "Kaiti SC", "STKaiti", serif;
+  font-size: 46px;
+  letter-spacing: 0;
+}
+
+.cards-heading > p:last-child {
+  margin: 8px 0 0;
+  color: var(--muted);
+  line-height: 1.6;
+}
+
+.card-draw-panel {
+  display: grid;
+  grid-template-columns: 260px minmax(0, 1fr);
+  gap: 24px;
+  align-items: center;
+  min-height: 270px;
+  padding: 20px 24px;
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background:
+    linear-gradient(90deg, rgba(248, 241, 228, 0.72), rgba(255, 253, 247, 0.94)),
+    #fbf6ea;
+}
+
+.card-draw-mascot {
+  min-height: 230px;
+  background: url("assets/moya/star-mascot.jpg") center 43% / 125% auto no-repeat;
+}
+
+.card-draw-copy > p:first-child,
+.card-album header p {
+  margin: 0;
+  color: var(--seal);
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.card-draw-copy h3,
+.card-album h3 {
+  margin: 4px 0 14px;
+  color: var(--ink);
+  font-family: "Kaiti SC", "STKaiti", serif;
+  font-size: 30px;
+  letter-spacing: 0;
+}
+
+.card-draw-stats {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+  margin-bottom: 16px;
+}
+
+.card-draw-stats span {
+  padding: 10px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: rgba(255, 253, 247, 0.84);
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.card-draw-stats strong {
+  display: block;
+  margin-top: 3px;
+  color: var(--ink);
+  font-size: 17px;
+}
+
+.draw-card-button {
+  min-height: 54px;
+  padding: 0 20px;
+  border-radius: 7px;
+  background: linear-gradient(180deg, #d9827c, #c96f69);
+  color: white;
+  font-size: 16px;
+  font-weight: 900;
+  box-shadow: 0 5px 0 rgba(148, 67, 61, 0.16);
+}
+
+.draw-card-button:disabled {
+  background: #ddd3c5;
+  color: #8f8170;
+  box-shadow: none;
+  cursor: default;
+}
+
+.card-draw-message {
+  min-height: 22px;
+  margin: 12px 0 0;
+  color: var(--green-dark);
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.card-album {
+  padding: 16px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: rgba(251, 246, 234, 0.76);
+}
+
+.card-album > header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 14px;
+}
+
+.card-album > header > span {
+  padding: 8px 12px;
+  border-radius: 999px;
+  background: #fff0bd;
+  color: #9b6b19;
+  font-weight: 900;
+}
+
+.idiom-card-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.idiom-card {
+  position: relative;
+  display: grid;
+  min-width: 0;
+  overflow: hidden;
+  border: 1px solid rgba(215, 185, 154, 0.86);
+  border-radius: 8px;
+  background: #fffdf7;
+}
+
+.idiom-card-number,
+.revealed-card-number {
+  position: absolute;
+  left: 10px;
+  top: 10px;
+  z-index: 2;
+  display: grid;
+  min-width: 28px;
+  height: 28px;
+  padding: 0 7px;
+  place-items: center;
+  border: 1px solid rgba(184, 94, 88, 0.28);
+  border-radius: 999px;
+  background: rgba(251, 246, 234, 0.92);
+  color: var(--seal);
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.idiom-card-count {
+  position: absolute;
+  right: 10px;
+  top: 10px;
+  z-index: 2;
+  padding: 5px 8px;
+  border-radius: 999px;
+  background: var(--seal);
+  color: white;
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.idiom-card-art,
+.revealed-card-art {
+  aspect-ratio: 3 / 4;
+  border-bottom: 1px solid var(--line);
+  background-image: var(--card-sheet);
+  background-position: var(--card-x) center;
+  background-repeat: no-repeat;
+  background-size: 400% auto;
+}
+
+.idiom-card-copy {
+  display: grid;
+  align-content: start;
+  min-height: 250px;
+  padding: 13px;
+}
+
+.idiom-card h4 {
+  margin: 0;
+  color: var(--ink);
+  font-family: "Kaiti SC", "STKaiti", serif;
+  font-size: 23px;
+  letter-spacing: 0;
+}
+
+.idiom-pinyin {
+  margin: 3px 0 10px;
+  color: var(--green-dark);
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.idiom-card-copy > p:not(.idiom-pinyin),
+#cardRevealContent > p:not(.idiom-pinyin) {
+  margin: 6px 0 0;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.55;
+}
+
+.idiom-card-copy b,
+#cardRevealContent b {
+  display: block;
+  margin-bottom: 2px;
+  color: var(--seal);
+}
+
+.idiom-card > button {
+  min-height: 42px;
+  margin: 0 13px 13px;
+  border: 1px solid rgba(86, 121, 77, 0.35);
+  border-radius: 6px;
+  background: #edf5e7;
+  color: var(--green-dark);
+  font-weight: 900;
+}
+
+.idiom-card.locked .idiom-card-art {
+  filter: grayscale(1);
+  opacity: 0.18;
+}
+
+.idiom-card.locked .idiom-card-copy {
+  min-height: 140px;
+  place-content: center;
+  text-align: center;
+}
+
+.locked-card-note { color: #a49785 !important; }
+
+.card-reveal {
+  position: fixed;
+  inset: 0;
+  z-index: 40;
+  display: grid;
+  place-items: center;
+  padding: 18px;
+}
+
+.card-reveal-backdrop {
+  position: absolute;
+  inset: 0;
+  background: rgba(58, 47, 39, 0.42);
+  backdrop-filter: blur(3px);
+}
+
+.card-reveal-panel {
+  position: relative;
+  z-index: 1;
+  width: min(430px, 100%);
+  max-height: calc(100vh - 36px);
+  overflow: auto;
+  padding: 18px;
+  border: 2px solid #d9b779;
+  border-radius: 8px;
+  background: #fbf6ea;
+  box-shadow: 0 24px 70px rgba(58, 47, 39, 0.26);
+  animation: card-reveal-in 420ms ease both;
+}
+
+.card-reveal-close {
+  position: absolute;
+  right: 10px;
+  top: 10px;
+  z-index: 3;
+  display: grid;
+  width: 36px;
+  height: 36px;
+  place-items: center;
+  border-radius: 50%;
+  background: rgba(251, 246, 234, 0.92);
+  color: var(--ink);
+  font-size: 24px;
+}
+
+.card-reveal-status {
+  margin: 0 42px 10px 0;
+  color: var(--seal);
+  font-weight: 900;
+}
+
+#cardRevealContent { position: relative; }
+
+.revealed-card-art {
+  border: 1px solid var(--line);
+  border-radius: 7px;
+}
+
+.revealed-card-number {
+  top: 10px;
+}
+
+#cardRevealContent h3 {
+  margin: 14px 0 0;
+  color: var(--ink);
+  font-family: "Kaiti SC", "STKaiti", serif;
+  font-size: 34px;
+  letter-spacing: 0;
+}
+
+.card-reveal-panel > .primary-action {
+  width: 100%;
+  margin-top: 16px;
+}
+
+@keyframes card-reveal-in {
+  from { opacity: 0; transform: translateY(18px) scale(0.9) rotate(-2deg); }
+  to { opacity: 1; transform: translateY(0) scale(1) rotate(0); }
+}
+
+@media (max-width: 1000px) {
+  .idiom-card-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+
+@media (max-width: 700px) {
+  .card-draw-panel { grid-template-columns: 1fr; }
+  .card-draw-mascot { min-height: 190px; }
+}
+
+@media (max-width: 560px) {
+  .cards-heading h2 { font-size: 38px; }
+  .card-draw-panel { padding: 14px; }
+  .card-draw-stats { grid-template-columns: 1fr; }
+  .idiom-card-grid { grid-template-columns: 1fr; }
+  .idiom-card-copy { min-height: 0; }
 }

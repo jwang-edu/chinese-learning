@@ -30,6 +30,35 @@ const manifest = {
 };
 
 Object.assign(manifest, {
+  "b-clear": {
+    src: "https://commons.wikimedia.org/wiki/Special:Redirect/file/Zh-b%C5%8D.ogg",
+    pinyin: "bō",
+    source: "https://commons.wikimedia.org/wiki/File:Zh-b%C5%8D.ogg",
+    license: "See Wikimedia Commons source page",
+    artist: "Wikimedia Commons Mandarin pronunciation collection",
+    rate: 0.78,
+  },
+  "p-clear": {
+    src: "https://commons.wikimedia.org/wiki/Special:Redirect/file/Zh-p%C5%8D.ogg",
+    pinyin: "pō",
+    source: "https://commons.wikimedia.org/wiki/File:Zh-p%C5%8D.ogg",
+    license: "See Wikimedia Commons source page",
+    artist: "Wikimedia Commons Mandarin pronunciation collection",
+    rate: 0.78,
+  },
+  "m-clear": {
+    src: "https://commons.wikimedia.org/wiki/Special:Redirect/file/Zh-m%C5%8D.ogg",
+    pinyin: "mō",
+    source: "https://commons.wikimedia.org/wiki/File:Zh-m%C5%8D.ogg",
+    license: "See Wikimedia Commons source page",
+    artist: "Wikimedia Commons Mandarin pronunciation collection",
+    rate: 0.78,
+  },
+  "f-clear": {
+    pinyin: "fó",
+    systemVoice: true,
+    artist: "Device standard Mandarin voice",
+  },
   "ci-clear": {
     src: "https://commons.wikimedia.org/wiki/Special:Redirect/file/Zh-ci.ogg",
     pinyin: "cǐ",

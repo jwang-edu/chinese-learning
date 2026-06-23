@@ -21,10 +21,10 @@ window.PINYIN_SYLLABUS = [
     title: "第2课 声母 b p m f",
     rule: "双唇音：先看口形，再分辨送气与不送气。",
     items: [
-      { pinyin: "b", audio: "玻", char: "玻" },
-      { pinyin: "p", audio: "坡", char: "坡" },
-      { pinyin: "m", audio: "摸", char: "摸" },
-      { pinyin: "f", audio: "佛", char: "佛" },
+      { pinyin: "b", audio: "玻", char: "玻", recordingKey: "b-clear" },
+      { pinyin: "p", audio: "坡", char: "坡", recordingKey: "p-clear" },
+      { pinyin: "m", audio: "摸", char: "摸", recordingKey: "m-clear" },
+      { pinyin: "f", audio: "佛", char: "佛", recordingKey: "f-clear" },
     ],
   },
   {
