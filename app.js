@@ -676,7 +676,7 @@ function renderCardAlbum() {
     return `<article class="idiom-card ${owned ? "owned" : "locked"}">
       <div class="idiom-card-number">${card.order}</div>
       ${owned && count > 1 ? `<span class="idiom-card-count">×${count}</span>` : ""}
-      <div class="idiom-card-art" ${getCardArtStyle(card)} aria-hidden="true"></div>
+      ${getCardArtMarkup(card, "idiom-card-art")}
       <div class="idiom-card-copy">
         <h4>${owned ? escapeHTML(card.idiom) : "待收集"}</h4>
         <p class="idiom-pinyin">${owned ? escapeHTML(card.pinyin) : "抽卡后揭晓"}</p>
@@ -742,15 +742,20 @@ function getOwnedCardCount(record) {
   return Math.max(0, Number(record?.count) || 0);
 }
 
-function getCardArtStyle(card) {
-  const positions = ["0%", "33.333%", "66.667%", "100%"];
-  return `style="--card-sheet:url('assets/cards/card-sheet-${card.sheet}.jpg');--card-x:${positions[card.panel] || "0%"}"`;
+function getCardArtMarkup(card, className) {
+  const offsets = ["0%", "-25%", "-50%", "-75%"];
+  const sheet = Number(card.sheet) || 1;
+  const panel = Math.max(0, Math.min(3, Number(card.panel) || 0));
+  const src = `/assets/cards/card-sheet-${sheet}.jpg`;
+  return `<div class="${className}" style="--card-offset:${offsets[panel]}" aria-hidden="true">
+    <img class="card-art-image" src="${src}" alt="" loading="lazy" />
+  </div>`;
 }
 
 function showCardReveal(card, status) {
   cardRevealStatus.textContent = status;
   cardRevealContent.innerHTML = `
-    <div class="revealed-card-art" ${getCardArtStyle(card)} aria-hidden="true"></div>
+    ${getCardArtMarkup(card, "revealed-card-art")}
     <span class="revealed-card-number">第 ${card.order} 张</span>
     <h3 id="revealedCardTitle">${escapeHTML(card.idiom)}</h3>
     <p class="idiom-pinyin">${escapeHTML(card.pinyin)}</p>
