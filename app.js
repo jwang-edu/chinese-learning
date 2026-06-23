@@ -1386,7 +1386,7 @@ function submitPinyinAnswer(value, entry, mode) {
 
 function speakPinyinItem(item, events = {}) {
   const recording = window.PINYIN_AUDIO_FILES?.[item.recordingKey || item.audio];
-  if (recording?.systemVoice) return speakPinyinWithSystemVoice(item, events);
+  if (recording?.systemVoice) return speakPinyinWithSystemVoice(item, events, recording);
   if (recording?.src && "Audio" in window) {
     stopSpeech();
     const player = new window.Audio(recording.src);
@@ -1421,15 +1421,15 @@ function speakPinyinItem(item, events = {}) {
   return speakPinyinWithSystemVoice(item, events);
 }
 
-function speakPinyinWithSystemVoice(item, events = {}) {
+function speakPinyinWithSystemVoice(item, events = {}, recording = null) {
   if (!("speechSynthesis" in window) || !("SpeechSynthesisUtterance" in window)) {
     events.onEnd?.();
     return false;
   }
   if ("speechSynthesis" in window) window.speechSynthesis.cancel();
-  const utterance = new window.SpeechSynthesisUtterance(item.audio || item.char || item.pinyin);
+  const utterance = new window.SpeechSynthesisUtterance(recording?.text || item.audio || item.char || item.pinyin);
   utterance.lang = "zh-CN";
-  utterance.rate = 0.72;
+  utterance.rate = recording?.rate || 0.72;
   utterance.pitch = 1;
   let completed = false;
   const complete = () => {

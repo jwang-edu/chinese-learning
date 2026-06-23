@@ -36,8 +36,8 @@ window.PINYIN_SYLLABUS = [
     items: [
       { pinyin: "d", audio: "得", char: "得" },
       { pinyin: "t", audio: "特", char: "特" },
-      { pinyin: "n", audio: "呢", char: "呢" },
-      { pinyin: "l", audio: "勒", char: "乐" },
+      { pinyin: "n", audio: "呢", char: "呢", recordingKey: "n-clear" },
+      { pinyin: "l", audio: "勒", char: "乐", recordingKey: "l-clear" },
     ],
   },
   {
@@ -73,7 +73,7 @@ window.PINYIN_SYLLABUS = [
     items: [
       { pinyin: "zh", audio: "知", char: "知" },
       { pinyin: "ch", audio: "吃", char: "吃" },
-      { pinyin: "sh", audio: "诗", char: "诗" },
+      { pinyin: "sh", audio: "诗", char: "诗", recordingKey: "sh-clear" },
       { pinyin: "r", audio: "日", char: "日" },
     ],
   },
