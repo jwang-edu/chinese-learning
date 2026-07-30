@@ -2,6 +2,10 @@
 
 这个项目按 Vite 静态站点准备，部署方式与数学训练工具一致。
 
+## 正式网址
+
+https://chinese-learning-seven-orpin.vercel.app/
+
 ## GitHub
 
 1. 在 GitHub 新建一个仓库。
