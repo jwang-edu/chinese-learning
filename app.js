@@ -72,6 +72,7 @@ const CHARACTER_DATA = {
 
 const HANZI_DATABASE = { ...CHARACTER_DATA, ...(window.HANZI_DB || {}) };
 const PINYIN_SYLLABUS = [...(window.PINYIN_SYLLABUS || [])].sort((first, second) => first.order - second.order);
+const CHARACTER_LESSONS = window.MOYA_CHARACTER_LESSONS || {};
 
 const WORD_BANK = {
   一: ["一天", "一人", "一个"],
@@ -156,14 +157,17 @@ const QUESTION_TYPE_LABELS = {
   pinyinAudioToSymbol: "听音辨拼音",
   pinyinSymbolToAudio: "看拼音选读音",
   pinyinSymbolToChar: "拼音找汉字",
+  courseLesson: "墨芽中文课",
 };
 
 const state = {
   screen: "settings",
   trainingDomain: "hanzi",
+  learningStage: "explanation",
   entries: [],
   questionQueue: [],
   activeIndex: 0,
+  lessonEntryIndex: 0,
   mode: "pinyinToChar",
   selectedAnswer: null,
   placed: {},
@@ -190,6 +194,11 @@ const state = {
   timedOutQuestions: new Set(),
   dailyStats: null,
   currentSession: null,
+  resultSession: null,
+  currentResult: null,
+  currentResultComparison: null,
+  currentResultRecent: [],
+  questionStartedAt: null,
   sessionHistory: [],
   isMistakeReview: false,
   emptyMessage: null,
@@ -203,6 +212,15 @@ const state = {
   progressionFinalized: false,
   curriculumVolumeId: "g1a",
   curriculumSelectedCharacters: new Set(),
+  companionPanel: null,
+  companionChats: { thread: [] },
+  companionLoading: null,
+  companionVoiceEnabled: loadCompanionVoiceEnabled(),
+  companionAudioToken: 0,
+  companionAudio: null,
+  resultCompanionSpokenId: null,
+  hanziPracticeTypes: [],
+  lessonOnlyMode: false,
 };
 
 const input = document.querySelector("#characterInput");
@@ -216,12 +234,15 @@ const curriculumCharactersNode = document.querySelector("#curriculumCharacters")
 const curriculumSelectedCount = document.querySelector("#curriculumSelectedCount");
 const addCurriculumCharactersButton = document.querySelector("#addCurriculumCharacters");
 const settingsPage = document.querySelector("#settingsPage");
+const hanziAnswerSettings = document.querySelector("#hanziAnswerSettings");
+const startPracticeButton = document.querySelector("#startPractice");
 const pinyinSettingsPage = document.querySelector("#pinyinSettingsPage");
 const settingsOnlyNodes = document.querySelectorAll(".settings-only");
 const pinyinSyllabusNode = document.querySelector("#pinyinSyllabus");
 const practicePage = document.querySelector("#practicePage");
 const practiceStats = document.querySelector(".practice-only");
 const practiceArea = document.querySelector("#practiceArea");
+const floatingCompanions = document.querySelector("#floatingCompanions");
 const progressText = document.querySelector("#progressText");
 const scoreText = document.querySelector("#scoreText");
 const scoreStars = document.querySelector("#scoreStars");
@@ -237,6 +258,7 @@ const sessionHistoryList = document.querySelector("#sessionHistoryList");
 const reviewMistakesButton = document.querySelector("#reviewMistakes");
 const mistakeCount = document.querySelector("#mistakeCount");
 const homePage = document.querySelector("#homePage");
+const chineseLearningPage = document.querySelector("#chineseLearningPage");
 const growthPage = document.querySelector("#growthPage");
 const cardsPage = document.querySelector("#cardsPage");
 const profileName = document.querySelector("#profileName");
@@ -266,7 +288,7 @@ const accountList = document.querySelector("#accountList");
 const accountCreateForm = document.querySelector("#accountCreateForm");
 const accountNameInput = document.querySelector("#accountNameInput");
 
-document.querySelector("#startPractice").addEventListener("click", startPractice);
+startPracticeButton.addEventListener("click", startPractice);
 document.querySelector("#startPinyinPractice").addEventListener("click", startPinyinPractice);
 document.querySelector("#backToSettings").addEventListener("click", showSettings);
 saveListButton.addEventListener("click", saveCurrentList);
@@ -276,13 +298,16 @@ addCurriculumCharactersButton.addEventListener("click", addCurriculumCharactersT
 reviewMistakesButton.addEventListener("click", startMistakeReview);
 drawIdiomCardButton.addEventListener("click", drawIdiomCard);
 document.querySelectorAll("[data-card-close]").forEach((button) => button.addEventListener("click", closeCardReveal));
-document.querySelector("#heroStartLearning").addEventListener("click", () => switchAppPage("hanzi"));
+document.querySelector("#heroStartLearning").addEventListener("click", () => switchAppPage("chinese-learning"));
 accountButton.addEventListener("click", openAccountModal);
 accountCreateForm.addEventListener("submit", createAccountFromForm);
 document.querySelectorAll("[data-account-close]").forEach((button) => button.addEventListener("click", closeAccountModal));
 
 document.querySelectorAll("[data-app-page]").forEach((button) => {
   button.addEventListener("click", () => switchAppPage(button.dataset.appPage));
+});
+document.querySelectorAll("[name='hanziFlowMode']").forEach((field) => {
+  field.addEventListener("change", updateHanziFlowModeUI);
 });
 document.querySelector("#selectSoundLessons").addEventListener("click", () => selectPinyinPhase("先学读音"));
 document.querySelector("#selectCombineLessons").addEventListener("click", () => selectPinyinPhase("再学拼读"));
@@ -295,12 +320,13 @@ document.querySelectorAll("[data-preset]").forEach((button) => {
   });
 });
 
-input.value = "明好林休妈语";
+input.value = "";
 state.userProfile = window.MOYA_PROGRESS.loadProfile();
 state.savedLists = loadSavedLists();
 state.sessionHistory = loadSessionHistory();
 renderPinyinSyllabus();
 renderCurriculumPicker();
+updateHanziFlowModeUI();
 renderProgressionUI();
 switchAppPage("home");
 renderAccountList();
@@ -316,6 +342,16 @@ window.addEventListener("moya:account-change", (event) => {
   loadActiveAccountState(event.detail.profile);
 });
 
+function getHanziFlowMode() {
+  return document.querySelector("[name='hanziFlowMode']:checked")?.value || "explanation";
+}
+
+function updateHanziFlowModeUI() {
+  const isPracticeMode = getHanziFlowMode() === "practice";
+  hanziAnswerSettings.classList.toggle("hidden", !isPracticeMode);
+  startPracticeButton.textContent = isPracticeMode ? "开始答题" : "开始听讲解";
+}
+
 function startPractice() {
   state.trainingDomain = "hanzi";
   state.isMistakeReview = false;
@@ -324,36 +360,45 @@ function startPractice() {
   stopTimer();
   clearAutoNext();
   const chars = getSelectedPracticeChars();
-  const selectedTypes = Array.from(document.querySelectorAll("[data-type]:checked")).map((field) => field.dataset.type);
-  if (!chars.length || !selectedTypes.length) return;
+  const flowMode = getHanziFlowMode();
+  const isLessonOnly = flowMode === "explanation";
+  const selectedTypes = isLessonOnly
+    ? []
+    : Array.from(document.querySelectorAll("[data-type]:checked")).map((field) => field.dataset.type);
+  if (!chars.length || (!isLessonOnly && !selectedTypes.length)) return;
   state.timerDuration = Number(document.querySelector("[name='timerSetting']:checked").value);
   state.rewardStars = {
     ...state.rewardStars,
-    ...Object.fromEntries(
-      Array.from(document.querySelectorAll("[data-reward-type]")).map((field) => [
-        field.dataset.rewardType,
-        Number(field.value),
-      ])
-    ),
+    pinyinToChar: 2,
+    charToPinyin: 2,
+    assemble: 2,
+    wordPractice: 2,
   };
   state.orderMode = document.querySelector("[name='orderSetting']:checked").value;
   state.entries = chars.map(createEntry);
-  state.questionQueue = state.entries.flatMap((entry) =>
-    selectedTypes
-      .filter((type) => type !== "wordPractice" || hasWordPracticeQuestion(entry))
-      .map((type) => ({
-        entry,
-        type,
-        id: `${type}:${entry.char}`,
-      }))
-  );
-  state.emptyMessage = state.questionQueue.length
+  state.questionQueue = isLessonOnly
+    ? []
+    : state.entries.flatMap((entry) =>
+        selectedTypes
+          .filter((type) => type !== "wordPractice" || hasWordPracticeQuestion(entry))
+          .map((type) => ({
+            entry,
+            type,
+            id: `${type}:${entry.char}`,
+          }))
+      );
+  state.emptyMessage = isLessonOnly || state.questionQueue.length
     ? null
     : "这些字暂时没有可用于组词练习的真实词语。请换几个字，或导入更大的词典。";
   if (state.orderMode === "random") state.questionQueue = shuffle(state.questionQueue);
   state.screen = "practice";
+  state.learningStage = isLessonOnly ? "explanation" : "practice";
+  state.lessonEntryIndex = 0;
+  state.hanziPracticeTypes = selectedTypes;
+  state.lessonOnlyMode = isLessonOnly;
+  state.companionPanel = null;
   state.activeIndex = 0;
-  state.mode = state.questionQueue[0]?.type || selectedTypes[0];
+  state.mode = state.questionQueue[0]?.type || selectedTypes[0] || "pinyinToChar";
   state.selectedAnswer = null;
   state.placed = {};
   state.assemblyChoices = [];
@@ -370,7 +415,7 @@ function startPractice() {
   practiceStats.classList.remove("hidden");
   scrollPracticeIntoView();
   state.dailyStats = loadDailyStats();
-  beginTrainingSession("hanzi", selectedTypes);
+  beginTrainingSession("hanzi", isLessonOnly ? ["explanation"] : selectedTypes);
   renderDailyStats();
   render();
 }
@@ -392,6 +437,7 @@ function startPinyinPractice() {
 
   const lessons = PINYIN_SYLLABUS.filter((lesson) => selectedLessonIds.has(lesson.id));
   state.trainingDomain = "pinyin";
+  state.lessonOnlyMode = false;
   state.timerDuration = Number(document.querySelector("[name='pinyinTimerSetting']:checked").value);
   state.orderMode = document.querySelector("[name='pinyinOrderSetting']:checked").value;
   state.entries = lessons.flatMap((lesson) =>
@@ -417,6 +463,8 @@ function startPinyinPractice() {
   if (state.orderMode === "random") state.questionQueue = shuffle(state.questionQueue);
   state.emptyMessage = null;
   state.screen = "practice";
+  state.learningStage = "practice";
+  state.companionPanel = null;
   state.activeIndex = 0;
   state.mode = state.questionQueue[0]?.type || selectedTypes[0];
   state.selectedAnswer = null;
@@ -445,6 +493,7 @@ function showSettings() {
   state.screen = "settings";
   state.emptyMessage = null;
   homePage.classList.add("hidden");
+  chineseLearningPage.classList.add("hidden");
   growthPage.classList.add("hidden");
   cardsPage.classList.add("hidden");
   settingsOnlyNodes.forEach((node) => node.classList.remove("hidden"));
@@ -452,12 +501,14 @@ function showSettings() {
   pinyinSettingsPage.classList.toggle("hidden", state.trainingDomain !== "pinyin");
   practicePage.classList.add("hidden");
   practiceStats.classList.add("hidden");
+  hideFloatingCompanions();
   progressText.textContent = "0 / 0";
   timerText.textContent = `${state.timerDuration}s`;
   updateScoreDisplay();
   state.dailyStats = loadDailyStats();
   renderDailyStats();
   renderSavedLists();
+  updateHanziFlowModeUI();
   updateNavigation(state.trainingDomain);
 }
 
@@ -466,15 +517,17 @@ function switchAppPage(page) {
   stopSpeech();
   stopAudioOptionSequence();
   clearAutoNext();
-  state.screen = ["home", "growth", "cards"].includes(page) ? page : "settings";
+  state.screen = ["home", "chinese-learning", "growth", "cards"].includes(page) ? page : "settings";
   if (page === "hanzi" || page === "pinyin") state.trainingDomain = page;
   homePage.classList.toggle("hidden", page !== "home");
+  chineseLearningPage.classList.toggle("hidden", page !== "chinese-learning");
   growthPage.classList.toggle("hidden", page !== "growth");
   cardsPage.classList.toggle("hidden", page !== "cards");
   settingsPage.classList.toggle("hidden", page !== "hanzi");
   pinyinSettingsPage.classList.toggle("hidden", page !== "pinyin");
   practicePage.classList.add("hidden");
   practiceStats.classList.add("hidden");
+  hideFloatingCompanions();
   updateNavigation(page);
   state.dailyStats = loadDailyStats();
   renderDailyStats();
@@ -505,6 +558,11 @@ function loadActiveAccountState(profile = window.MOYA_PROGRESS.loadProfile()) {
   state.sessionHistory = loadSessionHistory();
   state.dailyStats = loadDailyStats();
   state.currentSession = null;
+  state.resultSession = null;
+  state.currentResult = null;
+  state.currentResultComparison = null;
+  state.currentResultRecent = [];
+  state.questionStartedAt = null;
   state.score = 0;
   state.scoredQuestions = new Set();
   state.timedOutQuestions = new Set();
@@ -824,6 +882,628 @@ function getVolumeCharacters(volume) {
   return Array.from(new Set(volume?.groups.flatMap((group) => Array.from(group.characters)) || []));
 }
 
+function currentLessonEntry() {
+  if (!state.entries.length) return currentEntry();
+  const index = Math.min(state.lessonEntryIndex, state.entries.length - 1);
+  return state.entries[index] || state.entries[0];
+}
+
+function getCharacterLesson(entry) {
+  if (!entry) return null;
+  const char = entry.char;
+  const stored = CHARACTER_LESSONS[char];
+  if (stored) {
+    return {
+      ...stored,
+      pinyin: entry.pinyin || stored.pinyin,
+      words: stored.words?.length ? stored.words : getWordsForChar(char).slice(0, 3),
+    };
+  }
+  const database = HANZI_DATABASE[char] || {};
+  const words = getWordsForChar(char).slice(0, 3);
+  const parts = entry.parts?.length ? entry.parts : database.parts || [char];
+  const radical = database.radical || parts[0] || char;
+  const structure = getStructureLabel(entry.layout || database.layout);
+  return {
+    id: `char-${char}`,
+    character: char,
+    pinyin: entry.pinyin || database.pinyin || "待补拼音",
+    meaning: "这个字还在整理更完整的讲解，先从读音、结构和常用词开始认识它。",
+    imageUrl: "assets/moya/hanzi-garden.jpg",
+    words: words.length ? words : [`${char}字`],
+    sentence: words[0] ? `我们一起学习“${words[0]}”里的“${char}”。` : `我们一起认识“${char}”这个汉字。`,
+    momoExplanation: {
+      structure,
+      radical,
+      strokes: database.strokes || parts.length,
+      logic: parts.length > 1 ? `可以先观察这些部分：${parts.join("、")}。` : "这是一个整体字，先记住外形，再练读音。",
+      pronunciationTip: `读作 ${entry.pinyin || database.pinyin || "待补拼音"}，先慢慢读，再放进词语里读。`,
+      confusionTip: "如果看起来像别的字，先比一比部首和关键笔画。",
+    },
+    yayaExplanation: {
+      culturalNote: "每个汉字都像一幅小画，藏着中文里的生活经验。",
+      dailyUse: words[0] ? `日常可以在“${words[0]}”这样的词里看到它。` : "你可以在阅读和生活中慢慢寻找这个字。",
+      story: `小熊猫把“${char}”放进书卷里，等你读出来，它就亮了一点点。`,
+      encouragement: "你已经开始靠近这个字了，先认识，再熟悉，就会越来越稳。",
+    },
+  };
+}
+
+function getStructureLabel(layout) {
+  return {
+    single: "独体字",
+    vertical: "上下结构",
+    topBottom: "上下结构",
+    topMiddleBottom: "上中下结构",
+    topBottomDouble: "上下组合结构",
+    topDoubleBottom: "上部并列结构",
+    leftRight: "左右结构",
+    leftMiddleRight: "左中右结构",
+    surround: "包围结构",
+    overlap: "穿插结构",
+  }[layout] || "结构待观察";
+}
+
+function renderCharacterExplanation() {
+  const entry = currentLessonEntry();
+  const lesson = getCharacterLesson(entry);
+  if (!lesson) {
+    practiceArea.innerHTML = `<div class="empty-state"><h2>请选择要学习的汉字</h2></div>`;
+    return;
+  }
+  const isLastLesson = state.lessonEntryIndex >= state.entries.length - 1;
+  const actionLabel = state.lessonOnlyMode ? (isLastLesson ? "完成讲解" : "讲下一个字") : "开始练习";
+  progressText.textContent = `讲解 ${Math.min(state.lessonEntryIndex + 1, state.entries.length)} / ${state.entries.length || 1}`;
+  timerText.textContent = "讲解";
+  updateScoreDisplay();
+  practiceArea.innerHTML = `
+    <article class="character-explanation">
+      <section class="lesson-hero-card">
+        <div class="lesson-character-zone">
+          <div class="mizige-card" aria-label="米字格汉字">
+            <span>${escapeHTML(lesson.character)}</span>
+          </div>
+          <button class="lesson-audio-button" type="button" id="playLessonAudio">听读音</button>
+        </div>
+        <div class="lesson-copy">
+          <p class="question-kicker">先认识这个字</p>
+          <h2>${escapeHTML(lesson.character)} <span>${escapeHTML(lesson.pinyin)}</span></h2>
+          <p>${escapeHTML(lesson.meaning)}</p>
+          <div class="lesson-word-list">
+            ${lesson.words.map((word) => `<span>${escapeHTML(word)}</span>`).join("")}
+          </div>
+          <blockquote>${escapeHTML(lesson.sentence)}</blockquote>
+        </div>
+        ${lesson.imageUrl ? `<div class="lesson-image" role="img" aria-label="汉字图片示例" style="background-image:url('${escapeAttribute(lesson.imageUrl)}')"></div>` : ""}
+      </section>
+
+      ${renderCompanionLayer("explanation", lesson)}
+
+      <div class="lesson-actions">
+        <button class="primary-action" type="button" id="beginLessonPractice">${actionLabel}</button>
+      </div>
+    </article>
+  `;
+  document.querySelector("#playLessonAudio").addEventListener("click", () => speakCharacterLesson(lesson));
+  bindInlineCompanionLayer(practiceArea);
+  document
+    .querySelector("#beginLessonPractice")
+    .addEventListener("click", state.lessonOnlyMode ? continueLessonOnlyExplanation : beginLessonPractice);
+}
+
+function beginLessonPractice() {
+  state.learningStage = "practice";
+  state.companionPanel = null;
+  state.activeIndex = 0;
+  state.mode = state.questionQueue[0]?.type || state.mode;
+  state.selectedAnswer = null;
+  render();
+}
+
+function continueLessonOnlyExplanation() {
+  if (state.lessonEntryIndex < state.entries.length - 1) {
+    state.lessonEntryIndex += 1;
+    state.companionPanel = null;
+    render();
+    return;
+  }
+  showSettings();
+}
+
+function speakCharacterLesson(lesson) {
+  if (!("speechSynthesis" in window)) return;
+  stopSpeech();
+  const utterance = new SpeechSynthesisUtterance(lesson.character);
+  utterance.lang = "zh-CN";
+  utterance.rate = 0.78;
+  window.speechSynthesis.speak(utterance);
+}
+
+function hideFloatingCompanions() {
+  state.companionPanel = null;
+  if (!floatingCompanions) return;
+  floatingCompanions.classList.add("hidden");
+  floatingCompanions.innerHTML = "";
+}
+
+function renderFloatingCompanions() {
+  if (!floatingCompanions || state.screen !== "practice" || state.learningStage !== "practice") {
+    hideFloatingCompanions();
+    return;
+  }
+  const lesson = getCharacterLesson(currentLessonEntry() || currentEntry());
+  floatingCompanions.classList.remove("hidden");
+  floatingCompanions.innerHTML = renderCompanionLayer("practice", lesson);
+  floatingCompanions.querySelectorAll("[data-companion]").forEach((button) => {
+    button.addEventListener("click", () => {
+      state.companionPanel = state.companionPanel === button.dataset.companion ? null : button.dataset.companion;
+      renderFloatingCompanions();
+    });
+  });
+  floatingCompanions.querySelector("[data-companion-close]")?.addEventListener("click", () => {
+    state.companionPanel = null;
+    renderFloatingCompanions();
+  });
+  bindCompanionChat(floatingCompanions, lesson);
+}
+
+function renderCompanionLayer(stage, lesson = null, result = null) {
+  return window.MOYA_COMPANION_LAYER.render({
+    stage,
+    lesson,
+    result: result || state.currentResult,
+    activePanel: state.companionPanel,
+    typeLabel: QUESTION_TYPE_LABELS[state.mode] || "这道题",
+    labels: QUESTION_TYPE_LABELS,
+    escape: escapeHTML,
+    chats: state.companionChats,
+    loading: state.companionLoading,
+    voiceEnabled: state.companionVoiceEnabled,
+  });
+}
+
+function bindInlineCompanionLayer(root) {
+  root.querySelectorAll("[data-companion-speak]").forEach((button) => {
+    button.addEventListener("click", () => speakCompanionArticle(button));
+  });
+  bindCompanionChat(root, getCharacterLesson(currentLessonEntry() || currentEntry()));
+}
+
+function bindCompanionChat(root, lesson) {
+  root.querySelectorAll("[data-companion-chat]").forEach((box) => {
+    box.querySelector("[data-companion-voice-toggle]")?.addEventListener("click", (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      toggleCompanionVoice();
+    });
+    box.querySelectorAll("[data-companion-replay]").forEach((button) => {
+      button.addEventListener("click", (event) => {
+        event.preventDefault();
+        event.stopPropagation();
+        replayCompanionMessage(Number(button.dataset.companionReplay));
+      });
+    });
+    box.querySelector("[data-companion-send]")?.addEventListener("click", (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      submitCompanionChat(box, lesson);
+    });
+    box.querySelector("textarea[name='message']")?.addEventListener("keydown", (event) => {
+      if (event.key !== "Enter" || event.shiftKey) return;
+      event.preventDefault();
+      event.stopPropagation();
+      submitCompanionChat(box, lesson);
+    });
+  });
+}
+
+async function submitCompanionChat(box, lesson) {
+  const field = box.querySelector("textarea[name='message']");
+  const text = field?.value.trim();
+  if (!text || state.companionLoading) return;
+
+  const which = chooseCompanionForQuestion(text);
+  const activeLesson = lesson || getCharacterLesson(currentLessonEntry() || currentEntry());
+  const character = activeLesson?.character || currentEntry()?.char || state.entries[0]?.char || "林";
+  state.companionChats.thread.push({ role: "user", text });
+  const replyIndex = state.companionChats.thread.push({
+    role: "assistant",
+    which,
+    text: which === "momo" ? "我正在看这个问题..." : "我正在想一个温暖又清楚的回答...",
+  }) - 1;
+  state.companionLoading = which;
+  field.value = "";
+  paintCompanionChatBox(box);
+  refreshCompanionUI();
+
+  try {
+    const response = await fetch("/api/companion", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        which,
+        character,
+        userText: text,
+        errorType: getCurrentCompanionErrorType(),
+      }),
+    });
+    const result = await parseCompanionResponse(response);
+    state.companionChats.thread[replyIndex].text =
+      result.text || getCompanionErrorMessage(result.error || response.status);
+    requestCompanionAudio(replyIndex);
+  } catch (error) {
+    state.companionChats.thread[replyIndex].text =
+      error?.message || "现在连接有点不稳定。你可以稍后再问我一次。";
+  } finally {
+    state.companionLoading = null;
+    paintCompanionChatBox(box);
+    refreshCompanionUI();
+  }
+}
+
+function toggleCompanionVoice() {
+  state.companionVoiceEnabled = !state.companionVoiceEnabled;
+  localStorage.setItem("moya-companion-voice-enabled", state.companionVoiceEnabled ? "1" : "0");
+  if (!state.companionVoiceEnabled) stopCompanionAudio();
+  refreshCompanionUI();
+}
+
+function loadCompanionVoiceEnabled() {
+  return localStorage.getItem("moya-companion-voice-enabled") !== "0";
+}
+
+async function requestCompanionAudio(messageIndex) {
+  const message = state.companionChats.thread[messageIndex];
+  if (!message || message.role !== "assistant" || !message.text || !message.which) return;
+  if (!state.companionVoiceEnabled) return;
+
+  message.audioLoading = true;
+  refreshCompanionUI();
+
+  try {
+    const response = await fetch("/api/tts", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        text: message.text,
+        character: message.which,
+      }),
+    });
+    const result = await parseTTSResponse(response);
+    if (result.ok && result.chunks?.length) {
+      message.audioChunks = result.chunks;
+      message.browserSpeech = false;
+      message.audioError = null;
+      message.audioLoading = false;
+      refreshCompanionUI();
+      playCompanionAudioChunks(result.chunks);
+      return;
+    }
+    message.audioError = getNaturalVoiceErrorMessage(result.error || "tts_failed");
+    message.browserSpeech = false;
+  } catch (error) {
+    message.audioError = getNaturalVoiceErrorMessage(error?.message || "tts_failed");
+    message.browserSpeech = false;
+  } finally {
+    message.audioLoading = false;
+    refreshCompanionUI();
+  }
+}
+
+function getNaturalVoiceErrorMessage(error) {
+  const messages = {
+    missing_tts_api_key: "Natural voice is not configured yet.",
+    missing_voice_id: "Natural voice ID is missing.",
+    insufficient_tts_balance: "MiniMax voice balance is insufficient.",
+    invalid_tts_api_key: "The MiniMax voice API key is invalid.",
+    tts_generation_failed: "Natural voice could not be generated.",
+    tts_route_unavailable: "Natural voice service is not available in this dev mode.",
+  };
+  return messages[error] || "Natural voice is unavailable right now.";
+}
+
+async function parseTTSResponse(response) {
+  const contentType = response.headers.get("content-type") || "";
+  if (contentType.includes("application/json")) return response.json();
+  await response.text();
+  return { ok: false, error: "tts_route_unavailable", chunks: [] };
+}
+
+function replayCompanionMessage(messageIndex) {
+  const message = state.companionChats.thread[messageIndex];
+  if (!message?.audioChunks?.length && !message?.browserSpeech) return;
+  state.companionVoiceEnabled = true;
+  localStorage.setItem("moya-companion-voice-enabled", "1");
+  if (message.audioChunks?.length) {
+    playCompanionAudioChunks(message.audioChunks);
+  } else {
+    playBrowserCompanionSpeech(message.text, message.which);
+  }
+  refreshCompanionUI();
+}
+
+async function playCompanionAudioChunks(chunks) {
+  if (!state.companionVoiceEnabled || !chunks?.length) return;
+  const token = state.companionAudioToken + 1;
+  state.companionAudioToken = token;
+  stopCompanionAudio(false);
+
+  for (const chunk of chunks) {
+    if (state.companionAudioToken !== token || !state.companionVoiceEnabled) return;
+    const src = getAudioSource(chunk.audio);
+    if (!src) continue;
+    await playAudioSource(src, token);
+  }
+}
+
+function getAudioSource(audio) {
+  if (!audio) return "";
+  if (audio.kind === "dataUrl") return audio.dataUrl;
+  if (audio.kind === "url") return audio.url;
+  return "";
+}
+
+function playAudioSource(src, token) {
+  return new Promise((resolve) => {
+    const audio = new Audio(src);
+    state.companionAudio = audio;
+    audio.onended = resolve;
+    audio.onerror = resolve;
+    audio.onpause = () => {
+      if (state.companionAudioToken !== token) resolve();
+    };
+    audio.play().catch(resolve);
+  });
+}
+
+function stopCompanionAudio(incrementToken = true) {
+  if (incrementToken) state.companionAudioToken += 1;
+  if (state.companionAudio) {
+    state.companionAudio.pause();
+    state.companionAudio.src = "";
+    state.companionAudio = null;
+  }
+  if ("speechSynthesis" in window) {
+    window.speechSynthesis.cancel();
+  }
+}
+
+function playBrowserCompanionSpeech(text, which) {
+  if (!state.companionVoiceEnabled) return false;
+  if (!("speechSynthesis" in window) || !("SpeechSynthesisUtterance" in window)) return false;
+  const speechText = stripCompanionSpeechText(text);
+  if (!speechText) return false;
+  stopCompanionAudio();
+  const utterance = new SpeechSynthesisUtterance(speechText);
+  utterance.lang = "zh-CN";
+  utterance.rate = which === "yaya" ? 0.86 : 0.82;
+  utterance.pitch = which === "yaya" ? 1.05 : 0.92;
+  const voice = pickChineseBrowserVoice();
+  if (voice) utterance.voice = voice;
+  window.speechSynthesis.speak(utterance);
+  return true;
+}
+
+function pickChineseBrowserVoice() {
+  const voices = window.speechSynthesis?.getVoices?.() || [];
+  return voices.find((voice) => /zh|Chinese|Mandarin|普通话|中文/i.test(`${voice.lang} ${voice.name}`)) || null;
+}
+
+function stripCompanionSpeechText(text) {
+  return String(text || "")
+    .replace(/^#{1,6}\s*/gm, "")
+    .replace(/\*\*(.*?)\*\*/g, "$1")
+    .replace(/`([^`]+)`/g, "$1")
+    .replace(/\[([^\]]+)\]\([^)]+\)/g, "$1")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function chooseCompanionForQuestion(text) {
+  const normalized = text.toLowerCase();
+  const yayaPattern = /(故事|文化|生活|家|家庭|鼓励|难过|害怕|不想|为什么学|美国|heritage|family|story|culture|encourage|feel|home)/;
+  const momoPattern = /(结构|部首|笔画|读音|拼音|声调|怎么记|区别|为什么错|规则|分析|structure|radical|stroke|pronounce|pinyin|tone|remember|mistake)/;
+  if (yayaPattern.test(normalized) && !momoPattern.test(normalized)) return "yaya";
+  return "momo";
+}
+
+function paintCompanionChatBox(box) {
+  if (!box?.isConnected) return;
+  const log = box.querySelector(".companion-chat-log");
+  const button = box.querySelector("[data-companion-send]");
+  if (!log || !button) return;
+  const messages = state.companionChats.thread || [];
+  log.innerHTML = messages.map((message) => `
+    <div class="companion-chat-message ${escapeAttribute(message.role)} ${escapeAttribute(message.which || "")}">
+      <span>${getCompanionSpeakerLabel(message)}</span>
+      <p>${formatCompanionMessage(message)}</p>
+      ${getCompanionAudioControlHTML(message, state.companionChats.thread.indexOf(message))}
+    </div>
+  `).join("") || `<p class="companion-chat-empty">有问题可以轻轻问一句。</p>`;
+  button.disabled = Boolean(state.companionLoading);
+  button.textContent = state.companionLoading ? "思考中..." : "发送";
+  log.scrollTop = log.scrollHeight;
+}
+
+function getCompanionAudioControlHTML(message, index) {
+  if (message.role !== "assistant") return "";
+  if (message.audioLoading) {
+    return `<small class="companion-voice-state">${message.which === "yaya" ? "Yaya" : "Momo"} is speaking...</small>`;
+  }
+  if (message.audioChunks?.length || message.browserSpeech) {
+    return `<button type="button" class="companion-replay-button" data-companion-replay="${index}">🔊 Listen again</button>`;
+  }
+  if (message.audioError && state.companionVoiceEnabled) {
+    return `<small class="companion-voice-state">${escapeHTML(message.audioError)}</small>`;
+  }
+  return "";
+}
+
+function getCompanionSpeakerLabel(message) {
+  if (message.role === "user") return "我";
+  return message.which === "yaya" ? "Yaya" : "Momo";
+}
+
+function formatCompanionMessage(message) {
+  const escaped = escapeHTML(message.text || "");
+  if (message.role !== "assistant") return escaped;
+  return escaped
+    .replace(/^#### (.*)$/gm, "<strong>$1</strong>")
+    .replace(/^### (.*)$/gm, "<strong>$1</strong>")
+    .replace(/\*\*(.*?)\*\*/g, "<strong>$1</strong>")
+    .replace(/\n{2,}/g, "<br><br>")
+    .replace(/\n/g, "<br>");
+}
+
+async function parseCompanionResponse(response) {
+  const contentType = response.headers.get("content-type") || "";
+  if (contentType.includes("application/json")) {
+    return response.json();
+  }
+  await response.text();
+  return {
+    ok: false,
+    error: "api_route_unavailable",
+    text: "我还没有连到 AI 服务。请用 `npx vercel dev` 打开的地址测试，而不是普通 Vite 地址。",
+  };
+}
+
+function refreshCompanionUI() {
+  if (state.screen === "practice" && state.learningStage === "practice") {
+    renderFloatingCompanions();
+    return;
+  }
+  if (state.screen === "practice" && state.learningStage === "result") {
+    renderResultPage();
+    return;
+  }
+  render();
+}
+
+function getCurrentCompanionErrorType() {
+  const result = state.currentResult;
+  const firstWrong = result?.wrongAnswers?.[0];
+  return firstWrong?.errorType || null;
+}
+
+function getCompanionErrorMessage(error) {
+  const messages = {
+    missing_api_key: "Momo 和 Yaya 还没有连接好 API key，请老师稍后再试。",
+    invalid_message: "这个问题太长了，请短一点再问我。",
+    invalid_character: "我需要先知道正在学习的汉字，才能回答这个问题。",
+  };
+  return messages[error] || "我刚才没有回答成功，请再试一次。";
+}
+
+function getCompanionArticleSpeech(article) {
+  if (!article) return "";
+  const copy = article.cloneNode(true);
+  copy.querySelectorAll("button").forEach((button) => button.remove());
+  return copy.textContent.replace(/\s+/g, " ").trim();
+}
+
+async function speakCompanionArticle(button) {
+  const text = getCompanionArticleSpeech(button.closest(".companion-block"));
+  if (!text) return;
+  const which = button.dataset.companionSpeak === "yaya" ? "yaya" : "momo";
+  const originalLabel = button.textContent;
+  state.companionVoiceEnabled = true;
+  localStorage.setItem("moya-companion-voice-enabled", "1");
+  button.disabled = true;
+  button.textContent = which === "yaya" ? "Yaya 语音生成中..." : "Momo 语音生成中...";
+
+  try {
+    const played = await requestAndPlayCompanionSpeech(text, which);
+    if (!played) button.textContent = "语音暂不可用";
+  } finally {
+    window.setTimeout(() => {
+      if (!button.isConnected) return;
+      button.disabled = false;
+      button.textContent = originalLabel;
+    }, 900);
+  }
+}
+
+async function speakResultCompanionsOnce(resultId) {
+  if (!resultId || state.resultCompanionSpokenId === resultId) return;
+  state.resultCompanionSpokenId = resultId;
+  if (!state.companionVoiceEnabled) return;
+  const cards = Array.from(practiceArea.querySelectorAll(".companion-layer-result .companion-block"));
+  if (!cards.length) return;
+  stopCompanionAudio();
+
+  for (const card of cards) {
+    if (state.learningStage !== "result" || state.currentResult?.id !== resultId) return;
+    const which = card.classList.contains("companion-block-yaya") ? "yaya" : "momo";
+    const text = getCompanionArticleSpeech(card);
+    if (text) await requestAndPlayCompanionSpeech(text, which);
+  }
+}
+
+async function requestAndPlayCompanionSpeech(text, which) {
+  if (!state.companionVoiceEnabled || !text) return false;
+
+  try {
+    const response = await fetch("/api/tts", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ text, character: which }),
+    });
+    const result = await parseTTSResponse(response);
+    if (!result.ok || !result.chunks?.length) {
+      console.warn("[MoYa companion voice]", result.error || "tts_failed", which);
+      return false;
+    }
+    await playCompanionAudioChunks(result.chunks);
+    return true;
+  } catch (error) {
+    console.warn("[MoYa companion voice]", error, which);
+    return false;
+  }
+}
+
+function getCompanionPanelHTML(kind, lesson) {
+  const roleName = kind === "momo" ? "Momo" : "Yaya";
+  const title = kind === "momo" ? "学习教练" : "文化伙伴";
+  const content = kind === "momo" ? getMomoPanelContent(lesson) : getYayaPanelContent(lesson);
+  return `
+    <section class="companion-panel ${escapeAttribute(kind)}" aria-label="${roleName} 帮助面板">
+      <button type="button" data-companion-close aria-label="关闭">×</button>
+      <header><span class="panda-face" aria-hidden="true"></span><div><small>${roleName}</small><h3>${title}</h3></div></header>
+      ${content}
+    </section>
+  `;
+}
+
+function getMomoPanelContent(lesson) {
+  if (state.learningStage === "explanation" && lesson) {
+    return `
+      <p>先看结构：${escapeHTML(lesson.momoExplanation.structure)}。</p>
+      <p>再找部首：${escapeHTML(lesson.momoExplanation.radical)}。</p>
+      <p>${escapeHTML(lesson.momoExplanation.pronunciationTip)}</p>
+    `;
+  }
+  if (state.learningStage === "result") {
+    const analysis = getResultAnalysis();
+    return `<p>正确率 ${analysis.accuracy}% ，错题 ${analysis.wrong} 道。</p><p>${escapeHTML(analysis.strategy)}</p>`;
+  }
+  const type = QUESTION_TYPE_LABELS[state.mode] || "这道题";
+  return `<p>这是${escapeHTML(type)}。先观察题目提示，再排除最不像的选项。</p><p>我不会直接告诉你答案，但会提醒你看读音、部件或词语位置。</p>`;
+}
+
+function getYayaPanelContent(lesson) {
+  if (state.learningStage === "explanation" && lesson) {
+    return `
+      <p>${escapeHTML(lesson.yayaExplanation.dailyUse)}</p>
+      <p>${escapeHTML(lesson.yayaExplanation.encouragement)}</p>
+    `;
+  }
+  if (state.learningStage === "result") {
+    return `<p>你完成了一轮中文练习，这件事本身就很值得被看见。</p><p>下一次再遇到难题，也可以慢慢来。</p>`;
+  }
+  return `<p>慢慢选，不用急。中文学习像散步，一步一步也会走很远。</p><p>如果选错了，我们只是发现了一个可以再练的小地方。</p>`;
+}
+
 function renderCurriculumPicker() {
   const volumes = getCurriculumVolumes();
   const volume = getCurrentCurriculumVolume();
@@ -1079,6 +1759,13 @@ function isChineseChar(char) {
 
 function render() {
   if (state.screen !== "practice") return;
+  if (state.learningStage === "explanation" && state.trainingDomain === "hanzi" && !state.isMistakeReview) {
+    stopTimer();
+    clearAutoNext();
+    renderCharacterExplanation();
+    renderFloatingCompanions();
+    return;
+  }
   const currentQuestion = currentQuestionItem();
   state.mode = currentQuestion?.type || state.mode;
   progressText.textContent = `${state.questionQueue.length ? state.activeIndex + 1 : 0} / ${state.questionQueue.length}`;
@@ -1093,6 +1780,7 @@ function render() {
         </div>
       </div>
     `;
+    renderFloatingCompanions();
     return;
   }
 
@@ -1102,6 +1790,7 @@ function render() {
   if (state.mode === "assemble") renderAssembly();
   if (isPinyinTrainingMode(state.mode)) renderPinyinQuiz(state.mode);
   startTimer();
+  renderFloatingCompanions();
 }
 
 function renderChoiceQuiz(mode) {
@@ -1780,7 +2469,7 @@ function chooseAssemblyPart(choice) {
   if (!expectedPart) return;
 
   if (choice.part !== expectedPart) {
-    const scoreChange = recordAssemblyMistake();
+    const scoreChange = recordAssemblyMistake(choice.part);
     feedback.textContent = `这个部件不在这里。${formatScoreChange(scoreChange)}`;
     feedback.className = "feedback bad";
     return;
@@ -1810,6 +2499,7 @@ function recordScore(isCorrect) {
   state.scoredQuestions.add(key);
   const delta = isCorrect ? state.rewardStars[state.mode] || 1 : -1;
   state.score += delta;
+  recordDetailedAnswer({ correct: isCorrect, stars: delta });
   updateScoreDisplay();
   updateDailyStats({ correct: isCorrect, stars: delta, type: state.mode });
   window.MOYA_PROGRESS.recordAnswer(state.userProfile, {
@@ -1821,8 +2511,9 @@ function recordScore(isCorrect) {
   return delta;
 }
 
-function recordAssemblyMistake() {
+function recordAssemblyMistake(pickedPart = "") {
   state.score -= 1;
+  recordDetailedAnswer({ correct: false, stars: -1, picked: pickedPart });
   updateScoreDisplay();
   updateDailyStats({ correct: false, stars: -1, type: state.mode });
   return -1;
@@ -1890,6 +2581,57 @@ function renderDailyStats() {
   renderMistakeReviewButton(stats.wrongItems || []);
 }
 
+window.MOYA_RECORD_COURSE_RESULT = function recordCourseResult(result) {
+  const total = Math.max(0, Number(result?.total) || 0);
+  const correct = Math.min(total, Math.max(0, Number(result?.correct) || 0));
+  const wrong = total - correct;
+  const stars = Math.max(0, Number(result?.awardedStars) || 0);
+  const profile = window.MOYA_PROGRESS.loadProfile();
+
+  profile.totalCorrect += correct;
+  const lessonTitle = String(result?.lessonTitle || "中文课程");
+  if (stars) window.MOYA_PROGRESS.awardStars(profile, stars, `完成墨芽中文：${lessonTitle}`);
+  else window.MOYA_PROGRESS.saveProfile(profile);
+  window.MOYA_PROGRESS.checkIn(profile);
+  state.userProfile = window.MOYA_PROGRESS.loadProfile();
+
+  if (!state.dailyStats || state.dailyStats.date !== todayKey()) state.dailyStats = loadDailyStats();
+  state.dailyStats.done += total;
+  state.dailyStats.correct += correct;
+  state.dailyStats.wrong += wrong;
+  state.dailyStats.stars += stars;
+  const courseStats = state.dailyStats.byType.courseLesson || { done: 0, correct: 0, wrong: 0, stars: 0 };
+  courseStats.done += total;
+  courseStats.correct += correct;
+  courseStats.wrong += wrong;
+  courseStats.stars += stars;
+  state.dailyStats.byType.courseLesson = courseStats;
+  const completedAt = result?.completedAt || new Date().toISOString();
+  const courseSession = {
+    id: `course-${String(result?.lessonId || "lesson")}-${Date.now()}`,
+    domain: "course",
+    lessonId: result?.lessonId || null,
+    lessonTitle,
+    types: ["courseLesson"],
+    startedAt: completedAt,
+    updatedAt: completedAt,
+    completedAt,
+    stars,
+    done: total,
+    correct,
+    wrong,
+    byType: {
+      courseLesson: { done: total, correct, wrong, stars },
+    },
+  };
+  state.sessionHistory.unshift(courseSession);
+  state.sessionHistory = state.sessionHistory.slice(0, 30);
+  localStorage.setItem(accountScopedKey("hanzi-practice:sessions"), JSON.stringify(state.sessionHistory));
+  saveDailyStats();
+  renderDailyStats();
+  renderProgressionUI();
+};
+
 function saveCurrentDailyMistake() {
   const question = currentQuestionItem();
   if (!question?.entry) return;
@@ -1932,6 +2674,7 @@ function startMistakeReview() {
   state.sessionStartedAt = Date.now();
   state.progressionFinalized = false;
   state.trainingDomain = "review";
+  state.lessonOnlyMode = false;
   state.entries = mistakes.map((item) => item.entry);
   state.questionQueue = mistakes.map((item, index) => ({
     entry: item.entry,
@@ -1940,6 +2683,8 @@ function startMistakeReview() {
     mistakeId: item.id,
   }));
   state.screen = "practice";
+  state.learningStage = "practice";
+  state.companionPanel = null;
   state.activeIndex = 0;
   state.mode = state.questionQueue[0].type;
   state.selectedAnswer = null;
@@ -1985,7 +2730,75 @@ function beginTrainingSession(domain, types) {
     wrong: 0,
     byType: {},
   };
+  state.resultSession = window.MOYA_RESULT_MODEL.createSession({
+    id: state.currentSession.id,
+    accountId: state.userProfile?.id || window.MOYA_PROGRESS.getActiveAccountId(),
+    domain,
+    listName: getResultListName(domain),
+    characters: state.entries.map((entry) => entry.char).filter(Boolean),
+    types,
+    orderMode: state.orderMode,
+    timerDuration: state.timerDuration,
+    startedAt: state.currentSession.startedAt,
+  });
+  state.currentResult = null;
+  state.questionStartedAt = Date.now();
   upsertCurrentSession();
+}
+
+function getResultListName(domain) {
+  if (domain === "pinyin") return "本次拼音练习";
+  if (domain === "review") return "错题复习";
+  const selectedIds = new Set(
+    Array.from(document.querySelectorAll("[data-list-select]:checked")).map((field) => field.dataset.listSelect)
+  );
+  const names = state.savedLists.filter((list) => selectedIds.has(list.id)).map((list) => list.name);
+  return names.length ? names.join(" + ") : "本次汉字练习";
+}
+
+function getDetailedCorrectAnswer(entry, mode) {
+  if (!entry) return "";
+  if (isPinyinTrainingMode(mode)) return getPinyinCorrectLabel(entry, mode);
+  if (mode === "assemble") return (entry.parts || []).join(" + ") || entry.char;
+  return getCorrectLabel(entry, mode);
+}
+
+function getDetailedPrompt(entry, mode) {
+  if (!entry) return "";
+  if (mode === "pinyinToChar") return entry.pinyin || "";
+  if (mode === "charToPinyin") return entry.char || "";
+  if (mode === "wordPractice") return getWordQuestion(entry)?.word || entry.char || "";
+  if (mode === "assemble") return entry.pinyin || entry.char || "";
+  return entry.pinyin || entry.audio || entry.char || "";
+}
+
+function getDetailedPickedAnswer(entry, mode, picked) {
+  if (!picked) return "";
+  if (mode !== "pinyinSymbolToAudio") return picked;
+  return entry.lessonItems?.find((item) => item.id === picked)?.audio || entry.audio || picked;
+}
+
+function recordDetailedAnswer({ correct, stars, picked = null }) {
+  if (!state.resultSession) return;
+  const question = currentQuestionItem();
+  const entry = question?.entry;
+  if (!question || !entry) return;
+  const timedOut = state.timedOutQuestions.has(currentQuestionKey());
+  const selected = picked ?? state.selectedAnswer ?? "";
+  window.MOYA_RESULT_MODEL.recordAnswer(state.resultSession, {
+    questionId: question.mistakeId || question.id || currentQuestionKey(),
+    type: state.mode,
+    target: entry.char || entry.pinyin || "",
+    pinyin: entry.pinyin || "",
+    prompt: getDetailedPrompt(entry, state.mode),
+    picked: getDetailedPickedAnswer(entry, state.mode, selected),
+    correctAnswer: getDetailedCorrectAnswer(entry, state.mode),
+    correct,
+    timedOut,
+    durationMs: state.questionStartedAt ? Date.now() - state.questionStartedAt : 0,
+    stars,
+    entry,
+  });
 }
 
 function updateCurrentSession(result) {
@@ -2032,6 +2845,9 @@ function aggregateSessionTypeStats() {
       totals[type] = target;
     });
   });
+  if (!totals.courseLesson && state.dailyStats?.byType?.courseLesson) {
+    totals.courseLesson = { ...state.dailyStats.byType.courseLesson };
+  }
   return totals;
 }
 
@@ -2057,7 +2873,7 @@ function renderSessionHistory() {
         const accuracy = session.done ? Math.round((session.correct / session.done) * 100) : 0;
         return `<div class="session-history-row">
           <span>${escapeHTML(date.toLocaleDateString("zh-CN", { month: "numeric", day: "numeric" }))}<small>${escapeHTML(date.toLocaleTimeString("zh-CN", { hour: "2-digit", minute: "2-digit" }))}</small></span>
-          <strong>${session.domain === "pinyin" ? "拼音" : session.domain === "review" ? "错题" : "汉字"} ${session.done}题</strong>
+          <strong>${session.domain === "pinyin" ? "拼音" : session.domain === "review" ? "错题" : session.domain === "course" ? "墨芽中文" : "汉字"} ${session.done}题</strong>
           <b>${accuracy}% · ${session.stars}★</b>
         </div>`;
       }).join("")
@@ -2232,6 +3048,8 @@ function renderComplete() {
   stopTimer();
   stopSpeech();
   clearAutoNext();
+  state.learningStage = "result";
+  state.companionPanel = null;
   finalizeProgressionSession();
   if (state.currentSession && !state.currentSession.completedAt) {
     state.currentSession.completedAt = new Date().toISOString();
@@ -2241,19 +3059,159 @@ function renderComplete() {
   }
   progressText.textContent = `${state.questionQueue.length} / ${state.questionQueue.length}`;
   timerText.textContent = "完成";
-  practiceArea.innerHTML = `
-    <div class="empty-state completion-celebration">
-      <div>
-        <div class="completion-medal" aria-hidden="true"></div>
-        <h2>练习完成</h2>
-        <p>本次获得 ${escapeHTML(state.score)} ★</p>
-        <div class="card-actions">
-          <button class="primary-action" type="button" id="finishBack">返回设置</button>
-        </div>
-      </div>
-    </div>
-  `;
-  document.querySelector("#finishBack").addEventListener("click", showSettings);
+  const completedResultSession = window.MOYA_RESULT_MODEL.finalizeSession(state.resultSession, { stars: state.score });
+  const result = window.MOYA_RESULT_CALCULATOR.calculate(completedResultSession);
+  const resultStorageKey = accountScopedKey("practice-results");
+  const previousHistory = window.MOYA_RESULT_STORAGE.getHistory(resultStorageKey);
+  const comparable = window.MOYA_RESULT_CALCULATOR.findComparable(result, previousHistory);
+  const comparison = window.MOYA_RESULT_CALCULATOR.compare(result, comparable);
+  window.MOYA_RESULT_STORAGE.save(resultStorageKey, completedResultSession, result);
+  const recent = window.MOYA_RESULT_STORAGE.getRecentSummaries(resultStorageKey, 7).reverse();
+  state.currentResult = result;
+  state.currentResultComparison = comparison;
+  state.currentResultRecent = recent;
+  renderResultPage();
+  hideFloatingCompanions();
+  speakResultCompanionsOnce(result.id);
+}
+
+function renderResultPage() {
+  const result = state.currentResult;
+  if (!result) return;
+  const comparison = state.currentResultComparison || null;
+  const recent = state.currentResultRecent || [];
+  const canContinueLesson = state.trainingDomain === "hanzi" && !state.isMistakeReview && state.entries.length > 0;
+  practiceArea.innerHTML = window.MOYA_RESULT_PAGE.render({
+    result,
+    comparison,
+    recent,
+    labels: QUESTION_TYPE_LABELS,
+    escape: escapeHTML,
+    canContinueLesson,
+    companionHTML: renderCompanionLayer("result", null, result),
+  });
+  bindInlineCompanionLayer(practiceArea);
+  document.querySelector("#finishBack")?.addEventListener("click", showSettings);
+  document.querySelector("#finishNextLesson")?.addEventListener("click", () => {
+    if (canContinueLesson) {
+      restartHanziLearningFlow();
+    } else {
+      showSettings();
+    }
+  });
+  document.querySelector("#resultRetry")?.addEventListener("click", retryCompletedPractice);
+  document.querySelector("#resultReviewWrong")?.addEventListener("click", startCurrentResultReview);
+}
+
+function retryCompletedPractice() {
+  const types = state.currentSession?.types || [];
+  const domain = state.trainingDomain;
+  state.questionQueue = state.entries.flatMap((entry) =>
+    types.filter((type) => type !== "wordPractice" || hasWordPracticeQuestion(entry)).map((type) => ({
+      entry,
+      type,
+      id: `${type}:${entry.id || entry.char || entry.pinyin}`,
+    }))
+  );
+  if (state.orderMode === "random") state.questionQueue = shuffle(state.questionQueue);
+  state.learningStage = "practice";
+  state.activeIndex = 0;
+  state.mode = state.questionQueue[0]?.type || types[0];
+  state.selectedAnswer = null;
+  state.placed = {};
+  state.choiceOptions = new Map();
+  state.score = 0;
+  state.scoredQuestions = new Set();
+  state.timedOutQuestions = new Set();
+  state.isMistakeReview = domain === "review";
+  beginTrainingSession(domain, types);
+  render();
+}
+
+function startCurrentResultReview() {
+  const wrongAnswers = state.currentResult?.wrongAnswers || [];
+  if (!wrongAnswers.length) return;
+  state.trainingDomain = "review";
+  state.isMistakeReview = true;
+  state.entries = wrongAnswers.map((answer) => answer.entry).filter(Boolean);
+  state.questionQueue = wrongAnswers.filter((answer) => answer.entry).map((answer, index) => ({
+    entry: answer.entry,
+    type: answer.type,
+    id: `result-review:${index}:${answer.questionId}`,
+    mistakeId: answer.questionId,
+  }));
+  state.learningStage = "practice";
+  state.activeIndex = 0;
+  state.mode = state.questionQueue[0]?.type;
+  state.selectedAnswer = null;
+  state.placed = {};
+  state.choiceOptions = new Map();
+  state.score = 0;
+  state.scoredQuestions = new Set();
+  state.timedOutQuestions = new Set();
+  beginTrainingSession("review", [...new Set(state.questionQueue.map((question) => question.type))]);
+  render();
+}
+
+function getResultAnalysis() {
+  const session = state.currentSession || {
+    done: state.scoredQuestions.size,
+    correct: 0,
+    wrong: 0,
+    byType: {},
+  };
+  const done = session.done || state.questionQueue.length || 0;
+  const correct = session.correct || Math.max(0, done - (session.wrong || 0));
+  const wrong = session.wrong || 0;
+  const accuracy = done ? Math.round((correct / done) * 100) : 0;
+  const weakestType = Object.entries(session.byType || {}).sort(([, first], [, second]) => (second.wrong || 0) - (first.wrong || 0))[0];
+  const label = weakestType ? QUESTION_TYPE_LABELS[weakestType[0]] || weakestType[0] : "暂时没有明显错误";
+  return {
+    done,
+    correct,
+    wrong,
+    accuracy,
+    errorType: wrong ? `${label} 需要多看一眼` : "这一轮很稳定",
+    review: wrong ? "先复习错题，再回到对应字的读音、部件或词语。" : "可以继续学习下一个字，也可以加一点新挑战。",
+    strategy: wrong ? "下一轮先慢读题目，再用排除法确认答案。" : "保持现在的节奏，继续向下一个字出发。",
+  };
+}
+
+function restartHanziLearningFlow() {
+  const selectedTypes = state.hanziPracticeTypes.length
+    ? state.hanziPracticeTypes
+    : Array.from(new Set(state.questionQueue.map((question) => question.type)));
+  state.lessonEntryIndex = state.entries.length ? (state.lessonEntryIndex + 1) % state.entries.length : 0;
+  state.questionQueue = state.entries.flatMap((entry) =>
+    selectedTypes
+      .filter((type) => type !== "wordPractice" || hasWordPracticeQuestion(entry))
+      .map((type) => ({
+        entry,
+        type,
+        id: `${type}:${entry.char}`,
+      }))
+  );
+  state.emptyMessage = state.questionQueue.length
+    ? null
+    : "这些字暂时没有可用于组词练习的真实词语。请换几个字，或导入更大的词典。";
+  if (state.orderMode === "random") state.questionQueue = shuffle(state.questionQueue);
+  state.learningStage = "explanation";
+  state.companionPanel = null;
+  state.activeIndex = 0;
+  state.mode = state.questionQueue[0]?.type || selectedTypes[0] || "pinyinToChar";
+  state.selectedAnswer = null;
+  state.placed = {};
+  state.assemblyChoices = [];
+  state.assemblyChoicesKey = "";
+  state.assemblyWrongScored = false;
+  state.choiceOptions = new Map();
+  state.score = 0;
+  state.scoredQuestions = new Set();
+  state.timedOutQuestions = new Set();
+  state.sessionStartedAt = Date.now();
+  state.progressionFinalized = false;
+  beginTrainingSession("hanzi", selectedTypes);
+  render();
 }
 
 function scrollPracticeIntoView() {
@@ -2335,6 +3293,7 @@ function nextCard() {
   state.assemblyChoices = [];
   state.assemblyChoicesKey = "";
   state.assemblyWrongScored = false;
+  state.questionStartedAt = Date.now();
   render();
 }
 

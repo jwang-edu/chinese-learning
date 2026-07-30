@@ -4,7 +4,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>墨芽 MoYa</title>
-    <link rel="stylesheet" href="styles.css" />
+    <link rel="stylesheet" href="styles.css?v=4" />
   </head>
   <body>
     <main class="app-shell">
@@ -43,6 +43,7 @@
 
         <nav class="training-domain-tabs" aria-label="主要导航">
           <button class="active" type="button" data-app-page="home"><span aria-hidden="true">舍</span>首页</button>
+          <button type="button" data-app-page="chinese-learning"><span aria-hidden="true">学</span>墨芽中文</button>
           <button type="button" data-app-page="hanzi"><span aria-hidden="true">字</span>汉字乐园</button>
           <button type="button" data-app-page="pinyin"><span aria-hidden="true">音</span>拼音乐园</button>
           <button type="button" data-app-page="cards"><span aria-hidden="true">卡</span>集星卡册</button>
@@ -58,7 +59,7 @@
               <p class="hero-kicker">墨香轻落，新芽初生</p>
               <h2><span>在汉字里，</span><span>遇见更美的世界</span></h2>
               <p>在墨芽，每一个字都像一颗种子，陪你慢慢发芽，长成大树。</p>
-              <button id="heroStartLearning" class="hero-start-button" type="button">开始学习 <span aria-hidden="true">→</span></button>
+              <button id="heroStartLearning" class="hero-start-button" type="button">进入墨芽中文 <span aria-hidden="true">→</span></button>
             </div>
             <div class="hero-watercolor" aria-hidden="true"></div>
           </section>
@@ -66,6 +67,7 @@
           <section class="home-section learning-worlds" aria-labelledby="learningWorldsTitle">
             <header><div><p>学习乐园</p><h2 id="learningWorldsTitle">今天想去哪里探索？</h2></div></header>
             <div class="world-grid">
+              <button class="world-card course-world" type="button" data-app-page="chinese-learning"><span class="world-art" aria-hidden="true"></span><strong>墨芽中文</strong><small>图片、对话与文化中的中文课</small><b>进入第一单元 →</b></button>
               <button class="world-card hanzi-world" type="button" data-app-page="hanzi"><span class="world-art" aria-hidden="true"></span><strong>汉字乐园</strong><small>认读汉字，发现字形</small><b>进入乐园 →</b></button>
               <button class="world-card pinyin-world" type="button" data-app-page="pinyin"><span class="world-art" aria-hidden="true"></span><strong>拼音乐园</strong><small>学习拼音，拼读音节</small><b>进入乐园 →</b></button>
               <div class="world-card future-world reading-world"><span class="world-lock" aria-hidden="true">锁</span><strong>阅读花园</strong><small>绘本阅读，未来开放</small></div>
@@ -99,6 +101,8 @@
             </section>
           </div>
         </section>
+
+        <section id="chineseLearningPage" class="chinese-learning-page hidden" aria-label="墨芽中文"></section>
 
         <section id="growthPage" class="growth-page hidden" aria-label="我的成长地图">
           <header class="growth-heading"><p class="eyebrow">一颗星，一步成长</p><h2>我的成长地图</h2><p>你学过的每一个字，都在小芽星球上留下了一束光。</p></header>
@@ -164,118 +168,120 @@
             <div class="hero-seal">练</div>
           </div>
 
-          <label for="characterInput">要练习的字</label>
-          <div class="entry-row">
-            <textarea
-              id="characterInput"
-              rows="2"
-              spellcheck="false"
-              placeholder="例如：明 好 林 休 妈 语"
-            ></textarea>
-            <button id="startPractice" type="button">开始答题</button>
-          </div>
-          <div class="preset-row" aria-label="快速示例">
-            <button type="button" data-preset="明好林休妈语">入门</button>
-            <button type="button" data-preset="海湖清河">偏旁</button>
-            <button type="button" data-preset="想您意念">心部</button>
-          </div>
+          <section class="hanzi-selection-panel" aria-labelledby="hanziSelectionTitle">
+            <div class="hanzi-panel-header">
+              <div>
+                <p class="section-kicker">第一步</p>
+                <h2 id="hanziSelectionTitle">先选要练习的字</h2>
+                <p>可以从教材选择，也可以勾选已经保存的练习单。</p>
+              </div>
+            </div>
 
-          <section class="curriculum-picker" aria-labelledby="curriculumTitle">
-            <div class="curriculum-header">
-              <div>
-                <p class="section-kicker">小学语文 · 一至六年级</p>
-                <h2 id="curriculumTitle">从教材写字表选字</h2>
-                <p>可以选择整册、整课，也可以逐个挑选要练习的字。</p>
+            <section class="curriculum-picker" aria-labelledby="curriculumTitle">
+              <div class="curriculum-header">
+                <div>
+                  <p class="section-kicker">小学语文 · 一至六年级</p>
+                  <h2 id="curriculumTitle">从教材写字表选字</h2>
+                  <p>可以选择整册、整课，也可以逐个挑选要练习的字。</p>
+                </div>
+                <span class="curriculum-badge">统编版 · 12 册</span>
               </div>
-              <span class="curriculum-badge">统编版 · 12 册</span>
-            </div>
-            <div id="curriculumVolumes" class="curriculum-volumes" aria-label="选择册次"></div>
-            <div class="curriculum-toolbar">
-              <strong id="curriculumVolumeSummary">一年级上册</strong>
-              <div>
-                <button id="selectCurriculumVolume" type="button">选择整册</button>
-                <button id="clearCurriculumSelection" type="button">清空选择</button>
+              <div id="curriculumVolumes" class="curriculum-volumes" aria-label="选择册次"></div>
+              <div class="curriculum-toolbar">
+                <strong id="curriculumVolumeSummary">一年级上册</strong>
+                <div>
+                  <button id="selectCurriculumVolume" type="button">选择整册</button>
+                  <button id="clearCurriculumSelection" type="button">清空选择</button>
+                </div>
               </div>
-            </div>
-            <div id="curriculumGroups" class="curriculum-groups" aria-label="按课次选择"></div>
-            <div id="curriculumCharacters" class="curriculum-characters" aria-label="按单字选择"></div>
-            <div class="curriculum-selection-bar">
-              <span>已选 <strong id="curriculumSelectedCount">0</strong> 个字</span>
-              <button id="addCurriculumCharacters" type="button" disabled>加入练习</button>
+              <div id="curriculumGroups" class="curriculum-groups" aria-label="按课次选择"></div>
+              <div id="curriculumCharacters" class="curriculum-characters" aria-label="按单字选择"></div>
+              <div class="curriculum-selection-bar">
+                <span>已选 <strong id="curriculumSelectedCount">0</strong> 个字</span>
+                <button id="addCurriculumCharacters" type="button" disabled>加入练习</button>
+              </div>
+            </section>
+
+            <section class="list-manager" aria-labelledby="savedListsTitle">
+              <div class="list-manager-header">
+                <div>
+                  <h2 id="savedListsTitle">练习单</h2>
+                  <p>保存一组字，下次可以勾选一个或多个一起训练。</p>
+                </div>
+                <div class="save-list-controls">
+                  <input id="listNameInput" type="text" maxlength="18" placeholder="练习单名称" />
+                  <button id="saveListButton" type="button">保存</button>
+                </div>
+              </div>
+              <div id="savedLists" class="saved-lists" aria-live="polite"></div>
+            </section>
+
+            <label for="characterInput">已选汉字</label>
+            <div class="entry-row">
+              <textarea
+                id="characterInput"
+                rows="2"
+                spellcheck="false"
+                placeholder=""
+              ></textarea>
             </div>
           </section>
 
-          <section class="list-manager" aria-labelledby="savedListsTitle">
-            <div class="list-manager-header">
+          <section class="hanzi-mode-panel" aria-labelledby="hanziModeTitle">
+            <div class="hanzi-panel-header">
               <div>
-                <h2 id="savedListsTitle">练习单</h2>
-                <p>保存一组字，下次可以勾选一个或多个一起训练。</p>
-              </div>
-              <div class="save-list-controls">
-                <input id="listNameInput" type="text" maxlength="18" placeholder="练习单名称" />
-                <button id="saveListButton" type="button">保存</button>
+                <p class="section-kicker">第二步</p>
+                <h2 id="hanziModeTitle">选择学习方式</h2>
               </div>
             </div>
-            <div id="savedLists" class="saved-lists" aria-live="polite"></div>
+            <div class="hanzi-mode-options">
+              <label class="hanzi-mode-option">
+                <input type="radio" name="hanziFlowMode" value="explanation" checked />
+                <span class="mode-icon">讲</span>
+                <span><strong>听讲解</strong><small>Momo 和 Yaya 逐字讲解</small></span>
+              </label>
+              <label class="hanzi-mode-option">
+                <input type="radio" name="hanziFlowMode" value="practice" />
+                <span class="mode-icon">答</span>
+                <span><strong>答题</strong><small>按原来的题型进行练习</small></span>
+              </label>
+            </div>
           </section>
 
-          <div class="settings-grid">
-            <fieldset class="question-type-fieldset">
-              <legend>测试题类型</legend>
-              <label><input type="checkbox" data-type="pinyinToChar" checked /> 拼音 → 字</label>
-              <label><input type="checkbox" data-type="charToPinyin" checked /> 字 → 拼音</label>
-              <label><input type="checkbox" data-type="assemble" checked /> 选择拼字</label>
-              <label><input type="checkbox" data-type="wordPractice" checked /> 组词练习</label>
-            </fieldset>
+          <section id="hanziAnswerSettings" class="hanzi-answer-settings hidden" aria-labelledby="hanziAnswerSettingsTitle">
+            <div class="hanzi-panel-header">
+              <div>
+                <p class="section-kicker">第三步</p>
+                <h2 id="hanziAnswerSettingsTitle">答题设置</h2>
+                <p>每题答对默认奖励 2 颗星。</p>
+              </div>
+            </div>
+            <div class="settings-grid">
+              <fieldset class="question-type-fieldset">
+                <legend>测试题类型</legend>
+                <label><input type="checkbox" data-type="pinyinToChar" checked /> 拼音 → 字</label>
+                <label><input type="checkbox" data-type="charToPinyin" checked /> 字 → 拼音</label>
+                <label><input type="checkbox" data-type="assemble" checked /> 选择拼字</label>
+                <label><input type="checkbox" data-type="wordPractice" checked /> 组词练习</label>
+              </fieldset>
 
-            <fieldset>
-              <legend>答题时间</legend>
-              <label><input type="radio" name="timerSetting" value="10" checked /> 10 秒</label>
-              <label><input type="radio" name="timerSetting" value="20" /> 20 秒</label>
-              <label><input type="radio" name="timerSetting" value="30" /> 30 秒</label>
-            </fieldset>
+              <fieldset>
+                <legend>答题时间</legend>
+                <label><input type="radio" name="timerSetting" value="10" checked /> 10 秒</label>
+                <label><input type="radio" name="timerSetting" value="20" /> 20 秒</label>
+                <label><input type="radio" name="timerSetting" value="30" /> 30 秒</label>
+              </fieldset>
 
-            <fieldset>
-              <legend>奖励星星</legend>
-              <label class="reward-row">
-                <span>拼音 → 字</span>
-                <select data-reward-type="pinyinToChar">
-                  <option value="1">+1 ★</option>
-                  <option value="2" selected>+2 ★</option>
-                  <option value="3">+3 ★</option>
-                </select>
-              </label>
-              <label class="reward-row">
-                <span>字 → 拼音</span>
-                <select data-reward-type="charToPinyin">
-                  <option value="1">+1 ★</option>
-                  <option value="2" selected>+2 ★</option>
-                  <option value="3">+3 ★</option>
-                </select>
-              </label>
-              <label class="reward-row">
-                <span>选择拼字</span>
-                <select data-reward-type="assemble">
-                  <option value="1">+1 ★</option>
-                  <option value="2" selected>+2 ★</option>
-                  <option value="3">+3 ★</option>
-                </select>
-              </label>
-              <label class="reward-row">
-                <span>组词练习</span>
-                <select data-reward-type="wordPractice">
-                  <option value="1">+1 ★</option>
-                  <option value="2" selected>+2 ★</option>
-                  <option value="3">+3 ★</option>
-                </select>
-              </label>
-            </fieldset>
+              <fieldset>
+                <legend>出题顺序</legend>
+                <label><input type="radio" name="orderSetting" value="ordered" checked /> 按输入顺序</label>
+                <label><input type="radio" name="orderSetting" value="random" /> 乱序</label>
+              </fieldset>
+            </div>
+          </section>
 
-            <fieldset>
-              <legend>出题顺序</legend>
-              <label><input type="radio" name="orderSetting" value="ordered" checked /> 按输入顺序</label>
-              <label><input type="radio" name="orderSetting" value="random" /> 乱序</label>
-            </fieldset>
+          <div class="hanzi-start-row">
+            <button id="startPractice" class="primary-action" type="button">开始听讲解</button>
           </div>
         </section>
 
@@ -379,14 +385,24 @@
       </section>
     </div>
 
+    <div id="floatingCompanions" class="floating-companions hidden" aria-label="AI 伴学角色"></div>
+
     <script src="data/hanzi-db.js"></script>
+    <script src="data/character-lessons.js"></script>
     <script src="data/word-db.js"></script>
     <script src="data/hanzi-curriculum.js?v=2"></script>
     <script src="data/pinyin-syllabus.js"></script>
     <script src="data/pinyin-audio-manifest.js"></script>
     <script src="data/progression-data.js"></script>
     <script src="data/idiom-cards.js"></script>
+    <script src="data/chinese-learning-course.js?v=6"></script>
     <script src="utils/progress.js"></script>
-    <script src="app.js?v=24"></script>
+    <script src="utils/result-model.js"></script>
+    <script src="utils/result-calculator.js"></script>
+    <script src="utils/result-storage.js"></script>
+    <script src="components/result-page.js"></script>
+    <script src="components/companion-layer.js?v=10"></script>
+    <script src="components/chinese-learning.js?v=6"></script>
+    <script src="app.js?v=45"></script>
   </body>
 </html>
